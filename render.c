@@ -142,19 +142,16 @@ static void init(int frame_w, int frame_h)
     }
 
     ass_set_message_cb(ass_library, msg_callback, NULL);
+    ass_set_extract_fonts(ass_library, 1);
 
     ass_renderer = ass_renderer_init(ass_library);
     if (!ass_renderer) {
         printf("ass_renderer_init failed!\n");
         exit(1);
     }
-
     ass_set_frame_size(ass_renderer, frame_w, frame_h);
     ass_set_fonts(ass_renderer, NULL, "sans-serif",
                   ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
-
-    if (frame_h < 720)
-        ass_set_hinting(ass_renderer, ASS_HINTING_NATIVE);
 }
 
 #define _r(c)  ((c)>>24)
@@ -273,6 +270,7 @@ eventlist_t *render_subs(char *subfile, int frame_w, int frame_h,
 
     init(frame_w, frame_h);
     ASS_Track *track = ass_read_file(ass_library, subfile, NULL);
+    ass_read_styles(track, subfile, NULL);
 
     if (!track) {
         printf("track init failed!\n");
@@ -290,31 +288,30 @@ eventlist_t *render_subs(char *subfile, int frame_w, int frame_h,
 
         switch (fres) {
             case 3:
-                {
-                    char imgfile[13];
+            {
+                char imgfile[13];
 
-                    snprintf(imgfile, 13, "%08d.png", count);
-                    write_png(imgfile, frame);
+                snprintf(imgfile, 13, "%08d.png", count);
+                write_png(imgfile, frame);
 
-                    count++;
-                }
-                /* fall through */
+                count++;
+            }
+            /* fall through */
             case 2:
             case 1:
                 tm += frame_d;
                 break;
             case 0:
-                {
-                    long long offset = ass_step_sub(track, tm, 1);
+            {
+                long long offset = ass_step_sub(track, tm, 1);
 
-                    if (tm && !offset)
-                        goto finish;
+                if (tm && !offset)
+                    goto finish;
 
-                    tm += offset;
-                    break;
-                }
+                tm += offset;
+                break;
+            }
         }
-
     }
 
 finish:
