@@ -10,5 +10,16 @@ typedef struct eventlist_s {
     image_t **events;
 } eventlist_t;
 
-eventlist_t *render_subs(char *subfile, int frame_w, int frame_h,
-                         int frame_d, int fps, int dvd_mode);
+typedef struct opts_s {
+    double par;
+    int fps;
+    int frame_w;
+    int frame_h;
+    int render_w;
+    int render_h;
+    int dvd_mode;
+    int display_w;
+    int hinting;
+} opts_t;
+
+eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args);

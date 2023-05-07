@@ -50,3 +50,17 @@ The following optional arguments are available:
 | ``--dvd-mode``     | subtitle appearance with the limited resolution and    |
 |                    | color palette of DVD subtitles.                        |
 +--------------------+--------------------------------------------------------+
+| ``-w``             | Specify the .ass width to use as frame & storage space |
+| ``--render-width`` | The output width is used if not specified. Some ass    |
+|                    | tags may not render properly if the value is improper. |
++--------------------+--------------------------------------------------------+
+| ``-h``             | Specify the .ass height to use as frame & storage space|
+| ``--render-height``| The output height is used if not specified. Some ass   |
+|                    | tags may not render properly if the value is improper. |
++--------------------+--------------------------------------------------------+
+| ``-g``             | libass hinting will be enabled if provided.            |
+| ``--hinting``      |                                                        |
++--------------------+--------------------------------------------------------+
+| ``-a``             | Set the pixel ratio to use in libass. Required for     |
+| ``--ass-pixratio`` | anamorphic content. Defaults to libass default value.  |
++--------------------+--------------------------------------------------------+

@@ -133,7 +133,7 @@ static void write_png(char *fname, image_t *img)
     fclose(fp);
 }
 
-static void init(int frame_w, int frame_h)
+static void init(opts_t *args)
 {
     ass_library = ass_library_init();
     if (!ass_library) {
@@ -149,9 +149,18 @@ static void init(int frame_w, int frame_h)
         printf("ass_renderer_init failed!\n");
         exit(1);
     }
-    ass_set_frame_size(ass_renderer, frame_w, frame_h);
+    ass_set_frame_size(ass_renderer, args->render_w, args->render_h);
+    ass_set_pixel_aspect(ass_renderer, args->par);
+    
     ass_set_fonts(ass_renderer, NULL, "sans-serif",
                   ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+
+    if (args->hinting >= 0 && args->hinting <= ASS_HINTING_NATIVE) {
+        ass_set_hinting(ass_renderer, (ASS_Hinting)args->hinting);
+    } else {
+        printf("Incorrect hinting value.\n");
+        exit(1);
+    }
 }
 
 #define _r(c)  ((c)>>24)
@@ -261,23 +270,21 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *frame,
     }
 }
 
-eventlist_t *render_subs(char *subfile, int frame_w, int frame_h,
-                         int frame_d, int fps, int dvd_mode)
+eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args)
 {
     long long tm = 0;
     int count = 0, fres = 0;
     eventlist_t *evlist = calloc(1, sizeof(eventlist_t));
 
-    init(frame_w, frame_h);
+    init(args);
     ASS_Track *track = ass_read_file(ass_library, subfile, NULL);
-    ass_read_styles(track, subfile, NULL);
 
     if (!track) {
         printf("track init failed!\n");
         exit(1);
     }
 
-    image_t *frame = image_init(frame_w, frame_h, dvd_mode);
+    image_t *frame = image_init(args->frame_w, args->frame_h, args->dvd_mode);
 
     while (1) {
         if (fres && fres != 2 && count) {

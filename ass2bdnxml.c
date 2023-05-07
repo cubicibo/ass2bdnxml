@@ -89,8 +89,11 @@ void mktc(int tc, int fps, char *buf)
 }
 
 void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
-               char *track_name, char *language)
+               char *track_name, char *language, opts_t *args)
 {
+    int x_margin = args->render_w < args->frame_w ? (args->frame_w-args->render_w) >> 1 : 0;
+    int y_margin = args->render_h < args->frame_h ? (args->frame_h-args->render_h) >> 1 : 0;
+
     int i;
     char buf_in[12], buf_out[12];
     FILE *of = fopen("bdn.xml", "w");
@@ -127,7 +130,7 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
                 buf_in, buf_out);
         fprintf(of, "      <Graphic Width=\"%d\" Height=\"%d\" X=\"%d\" Y=\"%d\">%08d.png</Graphic>\n",
                 img->subx2 - img->subx1 + 1, img->suby2 - img->suby1 + 1,
-                img->subx1, img->suby1, i);
+                img->subx1+x_margin, img->suby1+y_margin, i);
         fprintf(of, "    </Event>\n");
     }
 
@@ -142,10 +145,13 @@ int main(int argc, char *argv[])
     char *language = "und";
     char *video_format = "1080p";
     char *frame_rate = "23.976";
-    int dvd_mode = 0, i;
+    int i;
     frate_t *frate = NULL;
     vfmt_t *vfmt = NULL;
     eventlist_t *evlist;
+
+    opts_t args;
+    memset(&args, 0, sizeof(args));
 
     if (argc < 2) {
         die_usage(argv[0]);
@@ -156,18 +162,26 @@ int main(int argc, char *argv[])
         {"language",     required_argument, 0, 'l'},
         {"video-format", required_argument, 0, 'v'},
         {"fps",          required_argument, 0, 'f'},
-        {"dvd-mode",     0,                 0, 'd'},
+        {"dvd-mode",     no_argument,       0, 'd'},
+        {"width-render", required_argument, 0, 'w'},
+        {"height-render",required_argument, 0, 'h'},
+        {"hinting",      required_argument, 0, 'g'},
+        {"ass-pixratio", required_argument, 0, 'a'},
         {0, 0, 0, 0}
     };
+    const char **err = NULL;
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "t:l:v:f:d", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "t:l:v:f:d:r:h:a:w:g", longopts, &opt_index);
 
         if (c == -1)
             break;
 
         switch (c) {
+            case 'a':
+                args.par = strtod(optarg, NULL);
+                break;
             case 't':
                 track_name = optarg;
                 break;
@@ -181,7 +195,24 @@ int main(int argc, char *argv[])
                 frame_rate = optarg;
                 break;
             case 'd':
-                dvd_mode = 1;
+                args.dvd_mode = 1;
+                break;
+            case 'g':
+                args.hinting = 1;
+                break;
+            case 'w':
+                args.render_w = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL) {
+                    printf("Invalid render width.");
+                    exit(1);
+                }
+                break;
+            case 'h':
+                args.render_h = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL) {
+                    printf("Invalid render height.");
+                    exit(1);
+                }
                 break;
             default:
                 die_usage(argv[0]);
@@ -225,11 +256,23 @@ int main(int argc, char *argv[])
         printf("Invalid video format.\n");
         exit(1);
     }
+    args.frame_h = vfmt->h;
+    args.frame_w = vfmt->w;
 
-    evlist = render_subs(subfile, vfmt->w, vfmt->h,
-                         rint(frate->frame_dur), frate->rate, dvd_mode);
+    // Some mapping
+    if (args.render_w == 0)
+        args.render_w = args.frame_w;
+    if (args.render_h == 0)
+        args.render_h = args.frame_h;
+    if (args.render_h > args.frame_h || args.render_w > args.frame_w) {
+        printf("Cannot render an ASS that has larger width or height than target.\n");
+        exit(1);
+    }
+    args.fps = frate->rate;
 
-    write_xml(evlist, vfmt, frate, track_name, language);
+    evlist = render_subs(subfile, rint(frate->frame_dur), &args);
+
+    write_xml(evlist, vfmt, frate, track_name, language, &args);
 
     for (i = 0; i < evlist->nmemb; i++) {
         free(evlist->events[i]);
