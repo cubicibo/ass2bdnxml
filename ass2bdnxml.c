@@ -158,14 +158,16 @@ int main(int argc, char *argv[])
     }
 
     static struct option longopts[] = {
+        {"dvd-mode",     no_argument,       0, 'd'},
+        {"hinting",      no_argument,       0, 'g'},
         {"trackname",    required_argument, 0, 't'},
         {"language",     required_argument, 0, 'l'},
         {"video-format", required_argument, 0, 'v'},
         {"fps",          required_argument, 0, 'f'},
-        {"dvd-mode",     no_argument,       0, 'd'},
         {"width-render", required_argument, 0, 'w'},
         {"height-render",required_argument, 0, 'h'},
-        {"hinting",      required_argument, 0, 'g'},
+        {"width-store",  required_argument, 0, 'x'},
+        {"height-store", required_argument, 0, 'y'},
         {"ass-pixratio", required_argument, 0, 'a'},
         {0, 0, 0, 0}
     };
@@ -173,7 +175,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "t:l:v:f:d:r:h:a:w:g", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "dgt:l:v:f:w:h:x:y:a:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -202,15 +204,29 @@ int main(int argc, char *argv[])
                 break;
             case 'w':
                 args.render_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL) {
+                if (err != NULL || args.render_w <= 0) {
                     printf("Invalid render width.");
                     exit(1);
                 }
                 break;
             case 'h':
                 args.render_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL) {
+                if (err != NULL || args.render_h <= 0) {
                     printf("Invalid render height.");
+                    exit(1);
+                }
+                break;
+            case 'x':
+                args.storage_w = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL || args.storage_w <= 0) {
+                    printf("Invalid storage width.");
+                    exit(1);
+                }
+                break;
+            case 'y':
+                args.storage_h = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL || args.storage_h <= 0) {
+                    printf("Invalid storage height.");
                     exit(1);
                 }
                 break;
@@ -268,6 +284,15 @@ int main(int argc, char *argv[])
         printf("Cannot render an ASS that has larger width or height than target.\n");
         exit(1);
     }
+    if (args.storage_h > 0 || args.storage_w > 0) {
+        if (args.storage_h == 0) {
+            args.storage_h = args.render_h;
+        }
+        if (args.storage_w == 0) {
+            args.storage_w = args.render_w;
+        }
+    }
+
     args.fps = frate->rate;
 
     evlist = render_subs(subfile, rint(frate->frame_dur), &args);

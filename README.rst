@@ -1,9 +1,9 @@
 Convert ASS subtitles into BDN XML + PNG images
 ===============================================
 
-This is a little utility I wrote back when I had to produce some Blu-ray
-subtitles for a documentary. The generated files can be used by tools like
-`BDSup2Sub++ <https://github.com/amichaelt/BDSup2SubPlusPlus>`_.
+ass2bdnxml is a command line software by `mia0 <https://github.com/mia-0>`_  to convert .ASS to BDN XML + PNG assets.
+The generated files can then be imported in Blu-Ray authoring softwares or used in `SUPer <https://github.com/cubicibo/SUPer>`_ to generate raw PGS stream files, usable in software like tsMuxer.
+This fork just enables some additional options revolving around libass, to support more complex (or bad) ASS files.
 
 Building
 --------
@@ -54,7 +54,7 @@ The following optional arguments are available:
 | ``--render-width`` | The output width is used if not specified. Some ass    |
 |                    | tags may not render properly if the value is improper. |
 +--------------------+--------------------------------------------------------+
-| ``-h``             | Specify the .ass height to use as frame & storage space|
+| ``-h``             | Specify the .ass height to use as frame space          |
 | ``--render-height``| The output height is used if not specified. Some ass   |
 |                    | tags may not render properly if the value is improper. |
 +--------------------+--------------------------------------------------------+
@@ -63,4 +63,11 @@ The following optional arguments are available:
 +--------------------+--------------------------------------------------------+
 | ``-a``             | Set the pixel ratio to use in libass. Required for     |
 | ``--ass-pixratio`` | anamorphic content. Defaults to libass default value.  |
++--------------------+--------------------------------------------------------+
+| ``-x``             | ASS storage width to use in libass. Typically the      |
+| ``--width-store``  | before-anamorphic width. -a should be preferred, over  |
+|                    | setting the storage space. It is a last resort option. |
++--------------------+--------------------------------------------------------+
+| ``-y``             | ASS storage height to use in libass. Should be left    |
+| ``--height-store`` | as default unless the video format is non-standard.    |
 +--------------------+--------------------------------------------------------+

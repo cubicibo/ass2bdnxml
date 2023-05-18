@@ -150,8 +150,13 @@ static void init(opts_t *args)
         exit(1);
     }
     ass_set_frame_size(ass_renderer, args->render_w, args->render_h);
-    ass_set_pixel_aspect(ass_renderer, args->par);
-    
+    if (args->par > 0) {
+        ass_set_pixel_aspect(ass_renderer, args->par);
+    }
+    if (args->storage_w && args->storage_h) {
+        ass_set_storage_size(ass_renderer, args->storage_w, args->storage_h);
+    }
+
     ass_set_fonts(ass_renderer, NULL, "sans-serif",
                   ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
 

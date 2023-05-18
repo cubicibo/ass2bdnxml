@@ -17,8 +17,9 @@ typedef struct opts_s {
     int frame_h;
     int render_w;
     int render_h;
+    int storage_w;
+    int storage_h;
     int dvd_mode;
-    int display_w;
     int hinting;
 } opts_t;
 
