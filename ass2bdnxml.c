@@ -168,20 +168,20 @@ int main(int argc, char *argv[])
         {"height-render",required_argument, 0, 'h'},
         {"width-store",  required_argument, 0, 'x'},
         {"height-store", required_argument, 0, 'y'},
-        {"ass-pixratio", required_argument, 0, 'a'},
+        {"par",          required_argument, 0, 'p'},
         {0, 0, 0, 0}
     };
     const char **err = NULL;
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "dgt:l:v:f:w:h:x:y:a:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "dgt:l:v:f:w:h:x:y:p:", longopts, &opt_index);
 
         if (c == -1)
             break;
 
         switch (c) {
-            case 'a':
+            case 'p':
                 args.par = strtod(optarg, NULL);
                 break;
             case 't':

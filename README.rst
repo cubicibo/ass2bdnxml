@@ -61,12 +61,12 @@ The following optional arguments are available:
 | ``-g``             | libass hinting will be enabled if provided.            |
 | ``--hinting``      |                                                        |
 +--------------------+--------------------------------------------------------+
-| ``-a``             | Set the pixel ratio to use in libass. Required for     |
-| ``--ass-pixratio`` | anamorphic content. Defaults to libass default value.  |
+| ``-p``             | Set the pixel aspect ratio in libass. Required for     |
+| ``--par``          | anamorphic content. Defaults to libass default value.  |
 +--------------------+--------------------------------------------------------+
 | ``-x``             | ASS storage width to use in libass. Typically the      |
-| ``--width-store``  | before-anamorphic width. -a should be preferred, over  |
-|                    | setting the storage space. It is a last resort option. |
+| ``--width-store``  | before-anamorphic width. -p should be preferred, over  |
+|                    | setting the storage space. Last resort option generally|
 +--------------------+--------------------------------------------------------+
 | ``-y``             | ASS storage height to use in libass. Should be left    |
 | ``--height-store`` | as default unless the video format is non-standard.    |
