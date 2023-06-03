@@ -203,29 +203,33 @@ int main(int argc, char *argv[])
                 args.hinting = 1;
                 break;
             case 'w':
-                args.render_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.render_w <= 0) {
+                args.render_w = (int)strtol(optarg, NULL, 10);
+                //args.render_w = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL || args.render_w <= 0 || args.render_w > 4096) {
                     printf("Invalid render width.");
                     exit(1);
                 }
                 break;
             case 'h':
-                args.render_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.render_h <= 0) {
+                args.render_h = (int)strtol(optarg, NULL, 10);
+                //args.render_h = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL || args.render_h <= 0 || args.render_h > 4096) {
                     printf("Invalid render height.");
                     exit(1);
                 }
                 break;
             case 'x':
-                args.storage_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.storage_w <= 0) {
+                args.storage_w = (int)strtol(optarg, NULL, 10);
+                //args.storage_w = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL || args.storage_w <= 0 || args.storage_w  > 4096) {
                     printf("Invalid storage width.");
                     exit(1);
                 }
                 break;
             case 'y':
-                args.storage_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.storage_h <= 0) {
+                args.storage_h = (int)strtol(optarg, NULL, 10);
+                //args.storage_h = (int)strtonum(optarg, 0, 4096, err);
+                if (err != NULL || args.storage_h <= 0 || args.storage_h > 4096) {
                     printf("Invalid storage height.");
                     exit(1);
                 }
