@@ -21,6 +21,7 @@ typedef struct opts_s {
     int storage_h;
     int dvd_mode;
     int hinting;
+    const char *fontdir;
 } opts_t;
 
 eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args);

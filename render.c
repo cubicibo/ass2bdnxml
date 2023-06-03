@@ -142,7 +142,12 @@ static void init(opts_t *args)
     }
 
     ass_set_message_cb(ass_library, msg_callback, NULL);
+
+    // fonts stuff
     ass_set_extract_fonts(ass_library, 1);
+    if (args->fontdir) {
+        ass_set_fonts_dir(ass_library, args->fontdir);
+    }
 
     ass_renderer = ass_renderer_init(ass_library);
     if (!ass_renderer) {

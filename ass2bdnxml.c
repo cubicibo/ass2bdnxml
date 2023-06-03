@@ -169,13 +169,14 @@ int main(int argc, char *argv[])
         {"width-store",  required_argument, 0, 'x'},
         {"height-store", required_argument, 0, 'y'},
         {"par",          required_argument, 0, 'p'},
+        {"fontdir",      required_argument, 0, 'a'},
         {0, 0, 0, 0}
     };
     const char **err = NULL;
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "dgt:l:v:f:w:h:x:y:p:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "dgt:l:v:f:w:h:x:y:p:a:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -233,6 +234,9 @@ int main(int argc, char *argv[])
                     printf("Invalid storage height.");
                     exit(1);
                 }
+                break;
+            case 'a':
+                args.fontdir = optarg;
                 break;
             default:
                 die_usage(argv[0]);

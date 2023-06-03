@@ -17,7 +17,7 @@ Or you can build it without using a build system::
 
     cc *.c -o ass2bdnxml $(pkg-config --cflags --libs libass) $(pkg-config --cflags --libs png) -lm
 
-(Depending on your platform, you may have to omit ``-lm``)
+(Depending on your platform, you may have to omit ``-lm`` and replace ``png`` by ``libpng``)
 
 Usage
 -----
@@ -70,4 +70,7 @@ The following optional arguments are available:
 +--------------------+--------------------------------------------------------+
 | ``-y``             | ASS storage height to use in libass. Should be left    |
 | ``--height-store`` | as default unless the video format is non-standard.    |
++--------------------+--------------------------------------------------------+
+| ``-a``             | Specify an additional font directory for custom fonts  |
+| ``--fontdir``      | not in the OS font manager or embedded in the ASS.     |
 +--------------------+--------------------------------------------------------+
