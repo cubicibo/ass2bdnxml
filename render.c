@@ -178,12 +178,16 @@ static void init(opts_t *args)
 #define _b(c)  (((c)>>8)&0xFF)
 #define _a(c)  ((c)&0xFF)
 
+#define div256(i) ((i+128) >> 8)
+#define div255(i) (div256(i + div256(i)))
+
 #define ablend(srcA, srcRGB, dstA, dstRGB, outA) \
-    (((srcA * 255 * srcRGB + (dstRGB * dstA * (255 - srcA))) / outA) / 255)
+    (((srcA * 255 * srcRGB + dstRGB * dstA * (255 - srcA) + (outA >> 1)) / outA))
 
 static void blend_single(image_t * frame, ASS_Image *img)
 {
     int x, y, c;
+    uint32_t outa, k;
     uint8_t opacity = 255 - _a(img->color);
     uint8_t r = _r(img->color);
     uint8_t g = _g(img->color);
@@ -197,7 +201,7 @@ static void blend_single(image_t * frame, ASS_Image *img)
 
     for (y = 0; y < img->h; y++) {
         for (x = 0, c = 0; x < img->w; x++, c += 4) {
-            unsigned k = (src[x] * opacity) / 255;
+            k = MIN(div255(src[x] * opacity), 255);
 
             if (frame->dvd_mode) {
                 if (dst[c+3])
@@ -208,12 +212,19 @@ static void blend_single(image_t * frame, ASS_Image *img)
             }
 
             if (k) {
-                uint8_t outa = (k * 255 + (dst[c + 3] * (255 - k))) / 255;
+                if (dst[c+3]) {
+                    outa = (k * 255 + (dst[c + 3] * (255 - k)));
 
-                dst[c    ] = ablend(k, b, dst[c + 3], dst[c    ], outa);
-                dst[c + 1] = ablend(k, g, dst[c + 3], dst[c + 1], outa);
-                dst[c + 2] = ablend(k, r, dst[c + 3], dst[c + 2], outa);
-                dst[c + 3] = outa;
+                    dst[c    ] = MIN(255, ablend(k, b, dst[c + 3], dst[c    ], outa));
+                    dst[c + 1] = MIN(255, ablend(k, g, dst[c + 3], dst[c + 1], outa));
+                    dst[c + 2] = MIN(255, ablend(k, r, dst[c + 3], dst[c + 2], outa));
+                    dst[c + 3] = MIN(255, div255(outa));
+                } else {
+                    dst[c    ] = b;
+                    dst[c + 1] = g;
+                    dst[c + 2] = r;
+                    dst[c + 3] = k;
+                }
             }
         }
 
