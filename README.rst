@@ -1,9 +1,9 @@
 Convert ASS subtitles into BDN XML + PNG images
 ===============================================
 
-ass2bdnxml is a command line software by `mia0 <https://github.com/mia-0>`_  to convert .ASS to BDN XML + PNG assets.
+ass2bdnxml is a command line software originally written by `mia0 <https://github.com/mia-0>`_  to convert .ASS to BDN XML + PNG assets.
 The generated files can then be imported in Blu-Ray authoring softwares or used in `SUPer <https://github.com/cubicibo/SUPer>`_ to generate raw PGS stream files, usable in software like tsMuxer.
-This fork just enables some additional options revolving around libass, to support more complex (or bad) ASS files.
+This fork enables additional options revolving around libass to support more complex ASS files. It also fixes alpha blending and features optional event splitting across two graphics to reduce buffer usage when the BDNXML is directly imported in the authoring software.
 
 Building
 --------
@@ -73,4 +73,8 @@ The following optional arguments are available:
 +--------------------+--------------------------------------------------------+
 | ``-a``             | Specify an additional font directory for custom fonts  |
 | ``--fontdir``      | not in the OS font manager or embedded in the ASS.     |
++--------------------+--------------------------------------------------------+
+| ``-s``             | Whenever possible, split an event in two graphic       |
+| ``--split``        | objects. This may reduce the buffer usage.             |
+|                    | Should NOT be used if the BDNXML is generated for SUPer|
 +--------------------+--------------------------------------------------------+

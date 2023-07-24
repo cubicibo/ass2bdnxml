@@ -128,9 +128,17 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
 
         fprintf(of, "    <Event Forced=\"False\" InTC=\"%s\" OutTC=\"%s\">\n",
                 buf_in, buf_out);
-        fprintf(of, "      <Graphic Width=\"%d\" Height=\"%d\" X=\"%d\" Y=\"%d\">%08d.png</Graphic>\n",
-                img->subx2 - img->subx1 + 1, img->suby2 - img->suby1 + 1,
-                img->subx1+x_margin, img->suby1+y_margin, i);
+        if (img->crops[0].x1 & 0xFF000000) {
+            fprintf(of, "      <Graphic Width=\"%d\" Height=\"%d\" X=\"%d\" Y=\"%d\">%08d.png</Graphic>\n",
+                    img->subx2 - img->subx1 + 1, img->suby2 - img->suby1 + 1,
+                    img->subx1+x_margin, img->suby1+y_margin, i);
+        } else {
+            for (uint8_t ki = 0; ki < 2; ki++) {
+                fprintf(of, "      <Graphic Width=\"%d\" Height=\"%d\" X=\"%d\" Y=\"%d\">%08d_%d.png</Graphic>\n",
+                    img->crops[ki].x2 - img->crops[ki].x1 + 1, img->crops[ki].y2 - img->crops[ki].y1 + 1,
+                    img->crops[ki].x1+x_margin, img->crops[ki].y1+y_margin, i, ki);
+            }
+        }
         fprintf(of, "    </Event>\n");
     }
 
@@ -158,6 +166,7 @@ int main(int argc, char *argv[])
     }
 
     static struct option longopts[] = {
+        {"split",        no_argument,       0, 's'},
         {"dvd-mode",     no_argument,       0, 'd'},
         {"hinting",      no_argument,       0, 'g'},
         {"trackname",    required_argument, 0, 't'},
@@ -176,7 +185,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "dgt:l:v:f:w:h:x:y:p:a:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "sdgt:l:v:f:w:h:x:y:p:a:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -202,6 +211,9 @@ int main(int argc, char *argv[])
                 break;
             case 'g':
                 args.hinting = 1;
+                break;
+            case 's':
+                args.split = 1;
                 break;
             case 'w':
                 args.render_w = (int)strtol(optarg, NULL, 10);

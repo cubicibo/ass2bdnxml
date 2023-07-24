@@ -8,6 +8,7 @@
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
+#define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
 
 ASS_Library *ass_library;
 ASS_Renderer *ass_renderer;
@@ -21,6 +22,7 @@ static image_t *image_init(int width, int height, int dvd_mode)
     img->subx1 = img->suby1 = -1;
     img->stride = width * 4;
     img->buffer = calloc(1, height * width * 4);
+    memset(img->crops, 0xFF, sizeof(BoundingBox_t)*2);
     return img;
 }
 
@@ -46,6 +48,7 @@ void eventlist_set(eventlist_t *list, image_t *ev, int index)
     newev->suby2 = ev->suby2;
     newev->in = ev->in;
     newev->out = ev->out;
+    memcpy(newev->crops, ev->crops, sizeof(BoundingBox_t)*2);
 
     if (list->size <= index) {
         list->size = index + 200;
@@ -268,6 +271,92 @@ static void blend(image_t *frame, ASS_Image *img)
     }
 }
 
+static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
+{
+    int pixelExist;
+    int xk, yk;
+
+    //left
+    pixelExist = 0;
+    for (xk = frame->subx1; xk < frame->subx2 - margin && !pixelExist; xk++) {
+        for (yk = y_start; yk < y_stop; yk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        }
+    }
+    box->x1 = xk;
+
+    //right
+    pixelExist = 0;
+    for (xk = frame->subx2; xk > frame->subx1 + margin && !pixelExist; xk--) {
+        for (yk = y_start; yk < y_stop; yk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        }
+    }
+    box->x2 = xk;
+
+    if (y_start == frame->suby1) {
+        box->y1 = frame->suby1;
+
+        pixelExist = 0;
+        for (yk = y_stop; yk > y_start + margin && !pixelExist; yk--) {
+            for (xk = box->x1; xk <= box->x2; xk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+            }
+        }
+        box->y2 = yk;
+    } else {
+        box->y2 = frame->suby2;
+
+        pixelExist = 0;
+        for (yk = y_start; yk < y_stop - margin && !pixelExist; yk++) {
+            for (xk = box->x1; xk <= box->x2; xk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+            }
+        }
+        box->y1 = yk;
+    }
+}
+
+static int find_split(image_t *frame)
+{
+    const int margin = 8;
+    uint32_t best_score = (uint32_t)(-1);
+    uint8_t pixelExist;
+
+    int yk, xk;
+    memset(frame->crops, 0xFF, sizeof(BoundingBox_t)*2);
+
+    //Prevent splits smaller than 8 pixels
+    if (frame->suby2 - frame->suby1 < margin*2) {
+        return 0;
+    }
+
+    BoundingBox_t eval[2];
+    uint32_t surface = 0;
+
+    for (yk = frame->suby1 + margin; yk < frame->suby2 - margin; yk+=margin) {
+        pixelExist = 0;
+        for (xk = frame->subx1; xk < frame->subx2 && !pixelExist; xk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
+        }
+
+        //Line is used by data, skip to the next split.
+        if (pixelExist) {
+            continue;
+        }
+
+        find_bbox(frame, frame->suby1, yk, margin, &eval[0]);
+        find_bbox(frame, yk, frame->suby2, margin, &eval[1]);
+
+        surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
+        if (surface < best_score) {
+            best_score = surface;
+            memcpy(frame->crops, eval, sizeof(eval));
+        }
+    }
+    return best_score < (uint32_t)(-1);
+}
+
 static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *frame,
                      long long time, int frame_d)
 {
@@ -295,6 +384,8 @@ eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args)
 {
     long long tm = 0;
     int count = 0, fres = 0;
+    int img_cnt;
+
     eventlist_t *evlist = calloc(1, sizeof(eventlist_t));
 
     init(args);
@@ -317,10 +408,21 @@ eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args)
         switch (fres) {
             case 3:
             {
-                char imgfile[13];
+                char imgfile[15];
 
-                snprintf(imgfile, 13, "%08d.png", count);
-                write_png(imgfile, frame);
+                if (args->split && find_split(frame)) {
+                    for (img_cnt = 0; img_cnt < 2; img_cnt++) {
+                        frame->subx1 = frame->crops[img_cnt].x1;
+                        frame->subx2 = frame->crops[img_cnt].x2;
+                        frame->suby1 = frame->crops[img_cnt].y1;
+                        frame->suby2 = frame->crops[img_cnt].y2;
+                        snprintf(imgfile, 15, "%08d_%d.png", count, img_cnt);
+                        write_png(imgfile, frame);
+                    }
+                } else {
+                    snprintf(imgfile, 15, "%08d.png", count);
+                    write_png(imgfile, frame);
+                }
 
                 count++;
             }
