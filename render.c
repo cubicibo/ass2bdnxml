@@ -283,7 +283,7 @@ static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin,
             pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
         }
     }
-    box->x1 = xk;
+    box->x1 = MAX(xk-1, frame->subx1);
 
     //right
     pixelExist = 0;
@@ -292,7 +292,7 @@ static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin,
             pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
         }
     }
-    box->x2 = xk;
+    box->x2 = MIN(xk+1, frame->subx2);
 
     if (y_start == frame->suby1) {
         box->y1 = frame->suby1;
@@ -303,7 +303,7 @@ static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin,
                 pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
             }
         }
-        box->y2 = yk;
+        box->y2 = MIN(yk+1, y_stop);
     } else {
         box->y2 = frame->suby2;
 
@@ -313,7 +313,7 @@ static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin,
                 pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
             }
         }
-        box->y1 = yk;
+        box->y1 = MAX(yk-1, y_start);
     }
 }
 
