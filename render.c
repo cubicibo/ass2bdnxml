@@ -10,6 +10,13 @@
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
 
+typedef enum SamplingFlag_s {
+    SAMPLE_TC_IN  = 0,
+    SAMPLE_TC_OUT,
+    SAMPLE_TC_MID,
+    INVALID_SAMPLING
+} SamplingFlag_t;
+
 ASS_Library *ass_library;
 ASS_Renderer *ass_renderer;
 
@@ -357,34 +364,51 @@ static int find_split(image_t *frame)
     return best_score < (uint32_t)(-1);
 }
 
-static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *frame,
-                     long long time, int frame_d)
+static uint64_t frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate, SamplingFlag_t flag)
+{
+    if (flag == SAMPLE_TC_OUT) {
+        return (uint64_t)floor((1000 * frame_cnt * frate->denom)/(double)frate->num);
+    } else if (flag == SAMPLE_TC_IN) {
+        return (uint64_t)ceil((1000*(frame_cnt - 1) * frate->denom)/(double)frate->num);
+    } else if (flag == SAMPLE_TC_MID) {
+        return (uint64_t)round(((1000*frame_cnt * frate->denom)/frate->num) - (500*frate->denom)/frate->num);
+    }
+    fprintf(stderr, "Invalid sampling flag.\n");
+    exit(1);
+}
+
+static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
+                     image_t *frame, uint64_t frame_cnt, frate_t *frate)
 {
     int changed;
-    ASS_Image *img = ass_render_frame(renderer, track, time, &changed);
+
+    uint64_t ms = frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_MID);
+    ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
-        frame->out = time + frame_d;
+        frame->out = frame_cnt + 1;
         blend(frame, img);
-        frame->in = time;
+        frame->in = frame_cnt;
 
         if (frame->subx1 == -1 || frame->suby1 == -1)
             return 2;
 
         return 3;
     } else if (!changed && img) {
-        frame->out = time + frame_d;
+        ++frame->out;
         return 1;
     } else {
         return 0;
     }
 }
 
-eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args)
+eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
 {
     long long tm = 0;
     int count = 0, fres = 0;
     int img_cnt;
+
+    uint64_t frame_cnt = 1;
 
     eventlist_t *evlist = calloc(1, sizeof(eventlist_t));
 
@@ -403,7 +427,7 @@ eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args)
             eventlist_set(evlist, frame, count - 1);
         }
 
-        fres = get_frame(ass_renderer, track, frame, tm, frame_d);
+        fres = get_frame(ass_renderer, track, frame, frame_cnt, frate);
 
         switch (fres) {
             case 3:
@@ -429,16 +453,21 @@ eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args)
             /* fall through */
             case 2:
             case 1:
-                tm += frame_d;
+                ++frame_cnt;
                 break;
             case 0:
             {
-                long long offset = ass_step_sub(track, tm, 1);
+                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_MID), 1);
+                uint64_t offset = (tm*frate->rate)/1000;
 
-                if (tm && !offset)
+                if (!tm && frame_cnt > 1)
                     goto finish;
 
-                tm += offset;
+                if (offset == 0) {
+                    offset = 1; //avoid deadlocks
+                }
+
+                frame_cnt += offset;
                 break;
             }
         }

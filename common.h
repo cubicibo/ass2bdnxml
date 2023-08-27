@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 typedef struct BoundingBox_s {
     int x1;
     int x2;
@@ -5,10 +7,18 @@ typedef struct BoundingBox_s {
     int y2;
 } BoundingBox_t;
 
+typedef struct frate_s {
+    char *name;
+    int rate;
+    double frame_dur;
+    uint64_t num;
+    uint64_t denom;
+} frate_t;
+
 typedef struct image_s {
     int width, height, stride, dvd_mode;
     int subx1, suby1, subx2, suby2;
-    long long in, out;
+    uint64_t in, out;
     BoundingBox_t crops[2];
     uint8_t *buffer;
 } image_t;
@@ -20,7 +30,6 @@ typedef struct eventlist_s {
 
 typedef struct opts_s {
     double par;
-    int fps;
     int frame_w;
     int frame_h;
     int render_w;
@@ -33,4 +42,4 @@ typedef struct opts_s {
     const char *fontdir;
 } opts_t;
 
-eventlist_t *render_subs(char *subfile, int frame_d, opts_t *args);
+eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args);

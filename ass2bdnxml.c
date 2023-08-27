@@ -23,19 +23,13 @@
 
 #include "common.h"
 
-typedef struct frate_s {
-    char *name;
-    int rate;
-    double frame_dur;
-} frate_t;
-
 frate_t frates[] = {
-    {"23.976", 24, 1000.0 / (24000.0 / 1001.0)},
-    {"24", 24, 1000.0 / (24.0 / 1.0)},
-    {"25", 25, 1000.0 / (25.0 / 1.0)},
-    {"29.97", 30, 1000.0 / (30000.0 / 1001.0)},
-    {"50", 50, 1000.0 / (50.0 / 1.0)},
-    {"59.94", 60, 1000.0 / (60000.0 / 1001.0)},
+    {"23.976",24, 1000.0 / (24000.0 / 1001.0), 24000, 1001},
+    {"24", 24, 1000.0 / (24.0 / 1.0), 24, 1},
+    {"25", 25, 1000.0 / (25.0 / 1.0), 25, 1},
+    {"29.97", 30, 1000.0 / (30000.0 / 1001.0), 30000, 1001},
+    {"50", 50, 1000.0 / (50.0 / 1.0), 50, 1},
+    {"59.94", 60, 1000.0 / (60000.0 / 1001.0), 60000, 1001},
     {NULL, 0, 0}
 };
 
@@ -88,6 +82,24 @@ void mktc(int tc, int fps, char *buf)
     }
 }
 
+static void frame_to_tc(uint64_t frames, frate_t *fps, char *buf)
+{
+    frames--;
+    uint8_t  frame = frames % fps->rate;
+    uint64_t ts = frames/fps->rate;
+    uint8_t  sec = ts % 60;
+    ts /= 60;
+    uint8_t m = ts % 60;
+    ts /= 60;
+    if (ts > 99) {
+        fprintf(stderr, "timestamp overflow (more than 99 hours).\n");
+        exit(1);
+    } else if (snprintf(buf, 12, "%02d:%02d:%02d:%02d", (uint8_t)ts, m, sec, frame) != 11) {
+        fprintf(stderr, "Timecode lead to invalid format: %s\n", buf);
+        exit(1);
+    }
+}
+
 void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
                char *track_name, char *language, opts_t *args)
 {
@@ -103,9 +115,10 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
         exit(1);
     }
 
-    mktc(evlist->events[0]->in / frate->frame_dur, frate->rate, buf_in);
-    mktc(evlist->events[evlist->nmemb - 1]->out / frate->frame_dur,
-         frate->rate, buf_out);
+    //mktc(evlist->events[0]->in / frate->frame_dur, frate->rate, buf_in);
+    //mktc(evlist->events[evlist->nmemb - 1]->out / frate->frame_dur, frate->rate, buf_out);
+    frame_to_tc(evlist->events[0]->in, frate, buf_in);
+    frame_to_tc(evlist->events[evlist->nmemb - 1]->out, frate, buf_out);
 
     fprintf(of, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 "<BDN Version=\"0.93\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"BD-03-006-0093b BDN File Format.xsd\">\n"
@@ -116,15 +129,19 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
                 "    <Events LastEventOutTC=\"%s\" FirstEventInTC=\"%s\" ",
             track_name, language, vfmt->name, frate->name, buf_out, buf_in);
 
-    mktc(0, frate->rate, buf_in);
+    //mktc(0, frate->rate, buf_in);
+    frame_to_tc(1, frate, buf_in);
+
     fprintf(of, "ContentInTC=\"%s\" ContentOutTC=\"%s\" NumberofEvents=\"%d\" Type=\"Graphic\"/>\n"
                 "  </Description>\n"
                 "  <Events>\n", buf_in, buf_out, evlist->nmemb);
 
     for (i = 0; i < evlist->nmemb; i++) {
         image_t *img = evlist->events[i];
-        mktc(img->in / frate->frame_dur, frate->rate, buf_in);
-        mktc(img->out / frate->frame_dur, frate->rate, buf_out);
+        frame_to_tc(img->in, frate, buf_in);
+        frame_to_tc(img->out, frate, buf_out);
+        //mktc(img->in / frate->frame_dur, frate->rate, buf_in);
+        //mktc(img->out / frate->frame_dur, frate->rate, buf_out);
 
         fprintf(of, "    <Event Forced=\"False\" InTC=\"%s\" OutTC=\"%s\">\n",
                 buf_in, buf_out);
@@ -313,9 +330,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    args.fps = frate->rate;
-
-    evlist = render_subs(subfile, rint(frate->frame_dur), &args);
+    evlist = render_subs(subfile, frate, &args);
 
     write_xml(evlist, vfmt, frate, track_name, language, &args);
 
