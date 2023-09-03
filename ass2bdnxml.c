@@ -55,31 +55,38 @@ static void die_usage(const char *name)
     exit(1);
 }
 
-/* SMPTE non-drop time code */
-void mktc(int tc, int fps, char *buf)
+void tc_to_tcarray(char *buf, uint8_t *vals)
 {
-    int frames, s, m, h;
-    tc++;
+    uint8_t hits = 0;
 
-    frames = tc % fps;
-    tc /= fps;
-    s = tc % 60;
-    tc /= 60;
-    m = tc % 60;
-    tc /= 60;
-    h = tc;
-
-    if (h > 99)
-    {
-        fprintf(stderr, "Timecodes above 99:59:59:99 not supported: %u:%02u:%02u:%02u\n", h, m, s, frames);
+    for (uint8_t k = 0; k < 12; k++) {
+        if(buf[k] && buf[k] >= '0' && buf[k] <= '9' && (k % 3 != 2)) {
+            //Do nothing, getting integer as expected
+        } else if (k == 11 || (buf[k] && buf[k] == ':' && (k % 3 == 2) && hits < 4)) {
+            vals[hits] = 10*(buf[k-2] - '0') + (buf[k-1] - '0');
+            hits++;
+        } else {
+            fprintf(stderr, "NDF TC format for offset parameter is invalid: %s\n", buf);
+            exit(1);
+        }
+    }
+    if (hits < 4) {
+        fprintf(stderr, "Failed to parse TC offset (too few ':'?): %s.\n", buf);
         exit(1);
     }
+}
 
-    if (snprintf(buf, 12, "%02d:%02d:%02d:%02d", h, m, s, frames) != 11)
-    {
-        fprintf(stderr, "Timecode lead to invalid format: %s\n", buf);
+uint64_t tcarray_to_frame(uint8_t *vals, frate_t *fps)
+{
+    if (vals[3] >= fps->rate) {
+        printf("Frame in TC is above framerate: %d >= %d\n", vals[3], fps->rate);
         exit(1);
     }
+    uint64_t offset = (uint64_t)vals[3];
+    offset += fps->rate*(uint64_t)vals[2];
+    offset += 60*fps->rate*(uint64_t)vals[1];
+    offset += 3600*fps->rate*(uint64_t)vals[0];
+    return offset;
 }
 
 static void frame_to_tc(uint64_t frames, frate_t *fps, char *buf)
@@ -115,10 +122,8 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
         exit(1);
     }
 
-    //mktc(evlist->events[0]->in / frate->frame_dur, frate->rate, buf_in);
-    //mktc(evlist->events[evlist->nmemb - 1]->out / frate->frame_dur, frate->rate, buf_out);
-    frame_to_tc(evlist->events[0]->in, frate, buf_in);
-    frame_to_tc(evlist->events[evlist->nmemb - 1]->out, frate, buf_out);
+    frame_to_tc(evlist->events[0]->in + args->offset, frate, buf_in);
+    frame_to_tc(evlist->events[evlist->nmemb - 1]->out + args->offset, frate, buf_out);
 
     fprintf(of, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 "<BDN Version=\"0.93\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"BD-03-006-0093b BDN File Format.xsd\">\n"
@@ -129,8 +134,9 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
                 "    <Events LastEventOutTC=\"%s\" FirstEventInTC=\"%s\" ",
             track_name, language, vfmt->name, frate->name, buf_out, buf_in);
 
-    //mktc(0, frate->rate, buf_in);
-    frame_to_tc(1, frate, buf_in);
+    //No idea what this ContentInTC truly means.
+    if (args->offset > 0)
+        frame_to_tc(1 + args->offset, frate, buf_in);
 
     fprintf(of, "ContentInTC=\"%s\" ContentOutTC=\"%s\" NumberofEvents=\"%d\" Type=\"Graphic\"/>\n"
                 "  </Description>\n"
@@ -138,10 +144,8 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
 
     for (i = 0; i < evlist->nmemb; i++) {
         image_t *img = evlist->events[i];
-        frame_to_tc(img->in, frate, buf_in);
-        frame_to_tc(img->out, frate, buf_out);
-        //mktc(img->in / frate->frame_dur, frate->rate, buf_in);
-        //mktc(img->out / frate->frame_dur, frate->rate, buf_out);
+        frame_to_tc(img->in + args->offset, frate, buf_in);
+        frame_to_tc(img->out + args->offset, frate, buf_out);
 
         fprintf(of, "    <Event Forced=\"False\" InTC=\"%s\" OutTC=\"%s\">\n",
                 buf_in, buf_out);
@@ -174,6 +178,9 @@ int main(int argc, char *argv[])
     frate_t *frate = NULL;
     vfmt_t *vfmt = NULL;
     eventlist_t *evlist;
+    uint8_t offset_vals[4];
+    memset(offset_vals, 0, sizeof(offset_vals));
+    uint8_t negative_offset = 0;
 
     opts_t args;
     memset(&args, 0, sizeof(args));
@@ -186,6 +193,7 @@ int main(int argc, char *argv[])
         {"split",        no_argument,       0, 's'},
         {"dvd-mode",     no_argument,       0, 'd'},
         {"hinting",      no_argument,       0, 'g'},
+        {"negative",     no_argument,       0, 'z'},
         {"trackname",    required_argument, 0, 't'},
         {"language",     required_argument, 0, 'l'},
         {"video-format", required_argument, 0, 'v'},
@@ -196,13 +204,14 @@ int main(int argc, char *argv[])
         {"height-store", required_argument, 0, 'y'},
         {"par",          required_argument, 0, 'p'},
         {"fontdir",      required_argument, 0, 'a'},
+        {"offset",       required_argument, 0, 'o'},
         {0, 0, 0, 0}
     };
     const char **err = NULL;
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "sdgt:l:v:f:w:h:x:y:p:a:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "zsdgt:l:v:f:w:h:x:y:p:a:o:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -226,11 +235,17 @@ int main(int argc, char *argv[])
             case 'd':
                 args.dvd_mode = 1;
                 break;
+            case 'z':
+                negative_offset = 1;
+                break;
             case 'g':
                 args.hinting = 1;
                 break;
             case 's':
                 args.split = 1;
+                break;
+            case 'o':
+                tc_to_tcarray(optarg, offset_vals);
                 break;
             case 'w':
                 args.render_w = (int)strtol(optarg, NULL, 10);
@@ -329,6 +344,10 @@ int main(int argc, char *argv[])
             args.storage_w = args.render_w;
         }
     }
+    //Compute timing offset
+    args.offset = tcarray_to_frame(offset_vals, frate);
+    if (negative_offset)
+        args.offset *= -1;
 
     evlist = render_subs(subfile, frate, &args);
 

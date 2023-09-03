@@ -30,6 +30,7 @@ typedef struct eventlist_s {
 
 typedef struct opts_s {
     double par;
+    int64_t offset;
     int frame_w;
     int frame_h;
     int render_w;
