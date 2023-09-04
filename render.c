@@ -3,6 +3,7 @@
 #include <math.h>
 #include <ass/ass.h>
 #include <png.h>
+#include <libimagequant.h>
 
 #include "common.h"
 
@@ -19,6 +20,7 @@ typedef enum SamplingFlag_s {
 
 ASS_Library *ass_library;
 ASS_Renderer *ass_renderer;
+liq_attr *attr;
 
 static image_t *image_init(int width, int height, int dvd_mode)
 {
@@ -85,6 +87,74 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("libass: ");
     vprintf(fmt, va);
     printf("\n");
+}
+
+static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, liq_result **res)
+{
+    FILE *fp;
+    png_structp png_ptr;
+    png_infop info_ptr;
+
+    int k, w, h;
+
+    w = rgba_img->subx2 - rgba_img->subx1 + 1;
+    h = rgba_img->suby2 - rgba_img->suby1 + 1;
+
+    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    info_ptr = png_create_info_struct(png_ptr);
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        printf("Critical error in libpng while processing %s.\n", fname);
+        return;
+    }
+
+    fp = fopen(fname, "wb");
+    if (fp == NULL) {
+        printf("PNG Error opening %s for writing!\n", fname);
+        return;
+    }
+
+    const liq_palette *liq_pal = liq_get_palette(*res);
+    png_color* palette = (png_color*)png_malloc(png_ptr, liq_pal->count*sizeof(png_color));
+    png_byte* trans = (png_byte*)png_malloc(png_ptr, liq_pal->count);
+
+    uint8_t* bitmap = (uint8_t*)malloc(rgba_img->width*rgba_img->height);
+    liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*rgba_img->height);
+
+    for (k = 0; k < liq_pal->count; k++)
+    {
+        png_color* col = &palette[k];
+        //palettized as BGR, flip B and R.
+        col->red = liq_pal->entries[k].b;
+        col->green = liq_pal->entries[k].g;
+        col->blue = liq_pal->entries[k].r;
+        trans[k] = liq_pal->entries[k].a;
+    }
+
+    png_init_io(png_ptr, fp);
+    png_set_compression_level(png_ptr, 3);
+
+    png_set_IHDR(png_ptr, info_ptr, w, h, 8,
+                 PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+    //Write palette and alpha
+    png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count);
+    png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count, NULL);
+    png_write_info(png_ptr, info_ptr);
+
+    png_byte *row;
+    for (int k = 0; k < h; k++) {
+        row = (png_byte*)(bitmap + (k + rgba_img->suby1)*rgba_img->width + rgba_img->subx1);
+        png_write_row(png_ptr, row);
+    }
+    png_write_end(png_ptr, NULL);
+
+    png_free(png_ptr, trans);
+    png_free(png_ptr, palette);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
 }
 
 static void write_png(char *fname, image_t *img)
@@ -180,6 +250,15 @@ static void init(opts_t *args)
     } else {
         printf("Incorrect hinting value.\n");
         exit(1);
+    }
+
+    if (args->quantize) {
+        attr = liq_attr_create();
+        if (attr == NULL) {
+            printf("Failed to initialise libimagequant.\n");
+            exit(1);
+        }
+        liq_set_max_colors(attr, args->quantize);
     }
 }
 
@@ -402,13 +481,27 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
     }
 }
 
+static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res)
+{
+    *img = liq_image_create_rgba(attr, /*&*/frame->buffer/*[frame->stride*frame->y1]*/, frame->width, frame->height, 0);
+    if (*img == NULL) {
+        return -1;
+    }
+
+    if(liq_image_quantize(*img, attr, qtz_res) != LIQ_OK) {
+        return -1;
+    }
+    return 0;
+}
+
 eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
 {
     long long tm = 0;
-    int count = 0, fres = 0;
-    int img_cnt;
-
+    int count = 0, fres = 0, img_cnt = 0;
     uint64_t frame_cnt = 1;
+
+    liq_result *res;
+    liq_image *img;
 
     eventlist_t *evlist = calloc(1, sizeof(eventlist_t));
 
@@ -433,7 +526,10 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
             case 3:
             {
                 char imgfile[15];
-
+                if (args->quantize && quantize_event(frame, &img, &res)) {
+                    printf("Quantization failed for %08d.png.\n", count);
+                    exit(1);
+                }
                 if (args->split && find_split(frame)) {
                     for (img_cnt = 0; img_cnt < 2; img_cnt++) {
                         frame->subx1 = frame->crops[img_cnt].x1;
@@ -441,13 +537,24 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                         frame->suby1 = frame->crops[img_cnt].y1;
                         frame->suby2 = frame->crops[img_cnt].y2;
                         snprintf(imgfile, 15, "%08d_%d.png", count, img_cnt);
-                        write_png(imgfile, frame);
+                        if (args->quantize) {
+                            write_png_palette(imgfile, frame, &img, &res);
+                        } else {
+                            write_png(imgfile, frame);
+                        }
                     }
                 } else {
                     snprintf(imgfile, 15, "%08d.png", count);
-                    write_png(imgfile, frame);
+                    if (args->quantize) {
+                        write_png_palette(imgfile, frame, &img, &res);
+                    } else {
+                        write_png(imgfile, frame);
+                    }
                 }
-
+                if (args->quantize) {
+                    liq_result_destroy(res);
+                    liq_image_destroy(img);
+                }
                 count++;
             }
             /* fall through */
@@ -476,6 +583,8 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
 finish:
     free(frame->buffer);
     free(frame);
+    if (args->quantize && attr)
+        liq_attr_destroy(attr);
     ass_free_track(track);
     ass_renderer_done(ass_renderer);
     ass_library_done(ass_library);

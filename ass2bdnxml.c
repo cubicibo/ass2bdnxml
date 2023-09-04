@@ -178,9 +178,10 @@ int main(int argc, char *argv[])
     frate_t *frate = NULL;
     vfmt_t *vfmt = NULL;
     eventlist_t *evlist;
+
+    uint8_t negative_offset = 0;
     uint8_t offset_vals[4];
     memset(offset_vals, 0, sizeof(offset_vals));
-    uint8_t negative_offset = 0;
 
     opts_t args;
     memset(&args, 0, sizeof(args));
@@ -205,13 +206,13 @@ int main(int argc, char *argv[])
         {"par",          required_argument, 0, 'p'},
         {"fontdir",      required_argument, 0, 'a'},
         {"offset",       required_argument, 0, 'o'},
+        {"quantize",     required_argument, 0, 'q'},
         {0, 0, 0, 0}
     };
-    const char **err = NULL;
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "zsdgt:l:v:f:w:h:x:y:p:a:o:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "zsdgt:l:v:f:w:h:x:y:p:a:o:q:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -249,33 +250,36 @@ int main(int argc, char *argv[])
                 break;
             case 'w':
                 args.render_w = (int)strtol(optarg, NULL, 10);
-                //args.render_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.render_w <= 0 || args.render_w > 4096) {
-                    printf("Invalid render width.");
+                if (args.render_w <= 0 || args.render_w > 4096) {
+                    printf("Invalid render width.\n");
                     exit(1);
                 }
                 break;
             case 'h':
                 args.render_h = (int)strtol(optarg, NULL, 10);
-                //args.render_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.render_h <= 0 || args.render_h > 4096) {
-                    printf("Invalid render height.");
+                if (args.render_h <= 0 || args.render_h > 4096) {
+                    printf("Invalid render height.\n");
                     exit(1);
                 }
                 break;
             case 'x':
                 args.storage_w = (int)strtol(optarg, NULL, 10);
-                //args.storage_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.storage_w <= 0 || args.storage_w  > 4096) {
-                    printf("Invalid storage width.");
+                if (args.storage_w <= 0 || args.storage_w  > 4096) {
+                    printf("Invalid storage width.\n");
                     exit(1);
                 }
                 break;
             case 'y':
                 args.storage_h = (int)strtol(optarg, NULL, 10);
-                //args.storage_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.storage_h <= 0 || args.storage_h > 4096) {
-                    printf("Invalid storage height.");
+                if (args.storage_h <= 0 || args.storage_h > 4096) {
+                    printf("Invalid storage height.\n");
+                    exit(1);
+                }
+                break;
+            case 'q':
+                args.quantize = (uint16_t)strtol(optarg, NULL, 10);
+                if (args.quantize == 0 || args.quantize > 255) {
+                    printf("Colours must be within [0; 255] (0 = no quantization).\n");
                     exit(1);
                 }
                 break;
@@ -333,7 +337,7 @@ int main(int argc, char *argv[])
     if (args.render_h == 0)
         args.render_h = args.frame_h;
     if (args.render_h > args.frame_h || args.render_w > args.frame_w) {
-        printf("Cannot render an ASS that has larger width or height than target.\n");
+        printf("Cannot render ASS file with larger width or height than video format.\n");
         exit(1);
     }
     if (args.storage_h > 0 || args.storage_w > 0) {
