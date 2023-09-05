@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Additional changes: Copyright © 2023, cubicibo
+ * The same agreement notice applies.
+ */
+
 #include <getopt.h>
 #include <math.h>
 #include <stdio.h>
@@ -178,9 +182,10 @@ int main(int argc, char *argv[])
     frate_t *frate = NULL;
     vfmt_t *vfmt = NULL;
     eventlist_t *evlist;
+
+    uint8_t negative_offset = 0;
     uint8_t offset_vals[4];
     memset(offset_vals, 0, sizeof(offset_vals));
-    uint8_t negative_offset = 0;
 
     opts_t args;
     memset(&args, 0, sizeof(args));
@@ -190,10 +195,11 @@ int main(int argc, char *argv[])
     }
 
     static struct option longopts[] = {
-        {"split",        no_argument,       0, 's'},
         {"dvd-mode",     no_argument,       0, 'd'},
         {"hinting",      no_argument,       0, 'g'},
         {"negative",     no_argument,       0, 'z'},
+        {"rleopt",       no_argument,       0, 'r'},
+        {"split",        required_argument, 0, 's'},
         {"trackname",    required_argument, 0, 't'},
         {"language",     required_argument, 0, 'l'},
         {"video-format", required_argument, 0, 'v'},
@@ -205,13 +211,13 @@ int main(int argc, char *argv[])
         {"par",          required_argument, 0, 'p'},
         {"fontdir",      required_argument, 0, 'a'},
         {"offset",       required_argument, 0, 'o'},
+        {"quantize",     required_argument, 0, 'q'},
         {0, 0, 0, 0}
     };
-    const char **err = NULL;
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "zsdgt:l:v:f:w:h:x:y:p:a:o:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "zdgrt:l:v:f:w:h:x:y:p:a:o:q:s:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -241,41 +247,51 @@ int main(int argc, char *argv[])
             case 'g':
                 args.hinting = 1;
                 break;
+            case 'r':
+                args.rle_optimise = 1;
+                break;
             case 's':
-                args.split = 1;
+                args.split = (uint8_t)strtol(optarg, NULL, 10);
+                if (args.split > 2) {
+                    printf("Invalid split mode.\n");
+                    exit(1);
+                }
                 break;
             case 'o':
                 tc_to_tcarray(optarg, offset_vals);
                 break;
             case 'w':
                 args.render_w = (int)strtol(optarg, NULL, 10);
-                //args.render_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.render_w <= 0 || args.render_w > 4096) {
-                    printf("Invalid render width.");
+                if (args.render_w <= 0 || args.render_w > 4096) {
+                    printf("Invalid render width.\n");
                     exit(1);
                 }
                 break;
             case 'h':
                 args.render_h = (int)strtol(optarg, NULL, 10);
-                //args.render_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.render_h <= 0 || args.render_h > 4096) {
-                    printf("Invalid render height.");
+                if (args.render_h <= 0 || args.render_h > 4096) {
+                    printf("Invalid render height.\n");
                     exit(1);
                 }
                 break;
             case 'x':
                 args.storage_w = (int)strtol(optarg, NULL, 10);
-                //args.storage_w = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.storage_w <= 0 || args.storage_w  > 4096) {
-                    printf("Invalid storage width.");
+                if (args.storage_w <= 0 || args.storage_w  > 4096) {
+                    printf("Invalid storage width.\n");
                     exit(1);
                 }
                 break;
             case 'y':
                 args.storage_h = (int)strtol(optarg, NULL, 10);
-                //args.storage_h = (int)strtonum(optarg, 0, 4096, err);
-                if (err != NULL || args.storage_h <= 0 || args.storage_h > 4096) {
-                    printf("Invalid storage height.");
+                if (args.storage_h <= 0 || args.storage_h > 4096) {
+                    printf("Invalid storage height.\n");
+                    exit(1);
+                }
+                break;
+            case 'q':
+                args.quantize = (uint16_t)strtol(optarg, NULL, 10);
+                if (args.quantize > 255) {
+                    printf("Colours must be within [0; 255] (default: 0, no quantization, 32-bit RGBA PNGs).\n");
                     exit(1);
                 }
                 break;
@@ -333,7 +349,7 @@ int main(int argc, char *argv[])
     if (args.render_h == 0)
         args.render_h = args.frame_h;
     if (args.render_h > args.frame_h || args.render_w > args.frame_w) {
-        printf("Cannot render an ASS that has larger width or height than target.\n");
+        printf("Cannot render ASS file with larger width or height than video format.\n");
         exit(1);
     }
     if (args.storage_h > 0 || args.storage_w > 0) {
@@ -348,6 +364,10 @@ int main(int argc, char *argv[])
     args.offset = tcarray_to_frame(offset_vals, frate);
     if (negative_offset)
         args.offset *= -1;
+
+    //RLE optimise discard palette entry zero, we have 254 usable colors.
+    if (args.rle_optimise && args.quantize == 255)
+        args.quantize -= 1;
 
     evlist = render_subs(subfile, frate, &args);
 

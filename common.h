@@ -37,9 +37,11 @@ typedef struct opts_s {
     int render_h;
     int storage_w;
     int storage_h;
-    int dvd_mode;
-    int hinting;
-    int split;
+    uint16_t quantize;
+    uint8_t dvd_mode;
+    uint8_t hinting;
+    uint8_t split;
+    uint8_t rle_optimise;
     const char *fontdir;
 } opts_t;
 

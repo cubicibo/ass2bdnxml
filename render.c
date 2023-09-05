@@ -3,8 +3,13 @@
 #include <math.h>
 #include <ass/ass.h>
 #include <png.h>
+#include <libimagequant.h>
 
 #include "common.h"
+
+#define FILENAME_FMT "%08d"
+#define FILENAME_CNT "_%d"
+#define FILENAME_EXT ".png"
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
@@ -19,6 +24,7 @@ typedef enum SamplingFlag_s {
 
 ASS_Library *ass_library;
 ASS_Renderer *ass_renderer;
+liq_attr *attr;
 
 static image_t *image_init(int width, int height, int dvd_mode)
 {
@@ -85,6 +91,102 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("libass: ");
     vprintf(fmt, va);
     printf("\n");
+}
+
+static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split)
+{
+    FILE *fp;
+    png_structp png_ptr;
+    png_infop info_ptr;
+
+    int k, w, h;
+    int h_margin, w_margin;
+    char fname[15];
+
+    w = rgba_img->subx2 - rgba_img->subx1 + 1;
+    h = rgba_img->suby2 - rgba_img->suby1 + 1;
+    h_margin = 0;
+    uint8_t rle_optimise = (args->rle_optimise > 0) & 0x01;
+
+    //Get palette from LIQ
+    const liq_palette *liq_pal = liq_get_palette(*res);
+    png_color* palette = (png_color*)malloc((liq_pal->count + rle_optimise)*sizeof(png_color));
+    png_byte* trans = (png_byte*)malloc(liq_pal->count + rle_optimise);
+
+    for (k = 0; k < liq_pal->count; k++)
+    {
+        png_color* col = &palette[k+rle_optimise];
+        //palettized as BGR, flip B and R.
+        col->red = liq_pal->entries[k].b;
+        col->green = liq_pal->entries[k].g;
+        col->blue = liq_pal->entries[k].r;
+        trans[k+rle_optimise] = liq_pal->entries[k].a;
+    }
+
+    //Get bitmap
+    uint8_t* bitmap = (uint8_t*)malloc(rgba_img->width*h);
+    liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*h);
+
+    //Palette entry zero is annoying in PGS, let's use it for a single pixel so authoring software can't shift the palette to id zero.
+    if (rle_optimise) {
+        for (k = 1; k < rgba_img->width*h; k++)
+            bitmap[k] += 1;
+        memcpy(&palette[0], &palette[bitmap[0]], sizeof(png_color));
+        trans[0] = trans[bitmap[0]];
+        bitmap[0] = 0;
+    }
+
+    for (uint8_t split_cnt = 0; split_cnt < MIN(2, 1 + is_split); split_cnt++) {
+        if (is_split) {
+            snprintf(fname, 15, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, split_cnt);
+            w = rgba_img->crops[split_cnt].x2 - rgba_img->crops[split_cnt].x1 + 1;
+            h = rgba_img->crops[split_cnt].y2 - rgba_img->crops[split_cnt].y1 + 1;
+            w_margin = rgba_img->crops[split_cnt].x1;
+            h_margin = rgba_img->crops[split_cnt].y1 - rgba_img->suby1;
+        } else {
+            w_margin = rgba_img->subx1;
+            snprintf(fname, 15, FILENAME_FMT FILENAME_EXT, count);
+        }
+
+        png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        info_ptr = png_create_info_struct(png_ptr);
+
+        if (setjmp(png_jmpbuf(png_ptr))) {
+            png_destroy_write_struct(&png_ptr, &info_ptr);
+            fclose(fp);
+            printf("Critical error in libpng while processing %s.\n", fname);
+            return;
+        }
+
+        fp = fopen(fname, "wb");
+        if (fp == NULL) {
+            printf("Error opening %s for writing!\n", fname);
+            return;
+        }
+
+        png_init_io(png_ptr, fp);
+        png_set_compression_level(png_ptr, 3);
+
+        png_set_IHDR(png_ptr, info_ptr, w, h, 8,
+                     PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
+                     PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+        //Write palette and alpha
+        png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count + rle_optimise);
+        png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count + rle_optimise, NULL);
+        png_write_info(png_ptr, info_ptr);
+
+        png_byte *row;
+        for (int k = 0; k < h; k++) {
+            row = (png_byte*)(bitmap + (k + h_margin)*rgba_img->width + w_margin);
+            png_write_row(png_ptr, row);
+        }
+        png_write_end(png_ptr, NULL);
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+    }
+    free(bitmap);
+    free(trans);
+    free(palette);
 }
 
 static void write_png(char *fname, image_t *img)
@@ -180,6 +282,15 @@ static void init(opts_t *args)
     } else {
         printf("Incorrect hinting value.\n");
         exit(1);
+    }
+
+    if (args->quantize) {
+        attr = liq_attr_create();
+        if (attr == NULL) {
+            printf("Failed to initialise libimagequant.\n");
+            exit(1);
+        }
+        liq_set_max_colors(attr, args->quantize);
     }
 }
 
@@ -278,7 +389,7 @@ static void blend(image_t *frame, ASS_Image *img)
     }
 }
 
-static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
+static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
 {
     int pixelExist;
     int xk, yk;
@@ -324,7 +435,53 @@ static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin,
     }
 }
 
-static int find_split(image_t *frame)
+static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int margin, BoundingBox_t *box)
+{
+    uint8_t pixelExist;
+    int xk, yk;
+
+    //top
+    pixelExist = 0;
+    for (yk = frame->suby1; (yk < frame->suby2 - margin) && !pixelExist; yk++) {
+        for (xk = x_start; xk < x_stop; xk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        }
+    }
+    box->y1 = MAX(yk-1, frame->suby1);
+
+    //bottom
+    pixelExist = 0;
+    for (yk = frame->suby2; (yk > frame->suby1 + margin) && !pixelExist; yk--) {
+        for (xk = x_start; xk < x_stop; xk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        }
+    }
+    box->y2 = MIN(yk+1, frame->suby2);
+
+    if (x_start == frame->subx1) {
+        box->x1 = frame->subx1;
+
+        pixelExist = 0;
+        for (xk = x_stop; xk > x_start + margin && !pixelExist; xk--) {
+            for (yk = box->y1; yk <= box->y2; yk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+            }
+        }
+        box->x2 = MIN(xk+1, x_stop);
+    } else {
+        box->x2 = frame->subx2;
+
+        pixelExist = 0;
+        for (xk = x_start; xk < x_stop - margin && !pixelExist; xk++) {
+            for (yk = box->y1; yk <= box->y2; yk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+            }
+        }
+        box->x1 = MAX(xk-1, x_start);
+    }
+}
+
+static int find_split(image_t *frame, uint8_t split_mode)
 {
     const int margin = 8;
     uint32_t best_score = (uint32_t)(-1);
@@ -341,6 +498,7 @@ static int find_split(image_t *frame)
     BoundingBox_t eval[2];
     uint32_t surface = 0;
 
+    //Search for a horizontal split
     for (yk = frame->suby1 + margin; yk < frame->suby2 - margin; yk+=margin) {
         pixelExist = 0;
         for (xk = frame->subx1; xk < frame->subx2 && !pixelExist; xk++) {
@@ -352,8 +510,8 @@ static int find_split(image_t *frame)
             continue;
         }
 
-        find_bbox(frame, frame->suby1, yk, margin, &eval[0]);
-        find_bbox(frame, yk, frame->suby2, margin, &eval[1]);
+        find_bbox_ysplit(frame, frame->suby1, yk, margin, &eval[0]);
+        find_bbox_ysplit(frame, yk, frame->suby2, margin, &eval[1]);
 
         surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
         if (surface < best_score) {
@@ -361,6 +519,30 @@ static int find_split(image_t *frame)
             memcpy(frame->crops, eval, sizeof(eval));
         }
     }
+    if (split_mode == 2) {
+        //Search for a vertical split
+        for (xk = frame->subx1 + margin; xk < frame->subx2 - margin; xk+=margin) {
+            pixelExist = 0;
+            for (yk = frame->suby1; yk < frame->suby2 && !pixelExist; yk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
+            }
+
+            //Line is used by data, skip to the next split.
+            if (pixelExist) {
+                continue;
+            }
+
+            find_bbox_xsplit(frame, frame->subx1, xk, margin, &eval[0]);
+            find_bbox_xsplit(frame, xk, frame->subx2, margin, &eval[1]);
+
+            surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
+            if (surface < best_score) {
+                best_score = surface;
+                memcpy(frame->crops, eval, sizeof(eval));
+            }
+        }
+    }
+
     return best_score < (uint32_t)(-1);
 }
 
@@ -402,13 +584,28 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
     }
 }
 
+static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res)
+{
+    *img = liq_image_create_rgba(attr, &frame->buffer[frame->stride*frame->suby1], frame->width, frame->suby2-frame->suby1+1, 0);
+    if (*img == NULL) {
+        return -1;
+    }
+
+    if(liq_image_quantize(*img, attr, qtz_res) != LIQ_OK) {
+        return -1;
+    }
+    return 0;
+}
+
 eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
 {
     long long tm = 0;
-    int count = 0, fres = 0;
-    int img_cnt;
-
+    int count = 0, fres = 0, img_cnt = 0;
     uint64_t frame_cnt = 1;
+    char imgfile[15];
+
+    liq_result *res;
+    liq_image *img;
 
     eventlist_t *evlist = calloc(1, sizeof(eventlist_t));
 
@@ -432,22 +629,35 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
         switch (fres) {
             case 3:
             {
-                char imgfile[15];
-
-                if (args->split && find_split(frame)) {
-                    for (img_cnt = 0; img_cnt < 2; img_cnt++) {
-                        frame->subx1 = frame->crops[img_cnt].x1;
-                        frame->subx2 = frame->crops[img_cnt].x2;
-                        frame->suby1 = frame->crops[img_cnt].y1;
-                        frame->suby2 = frame->crops[img_cnt].y2;
-                        snprintf(imgfile, 15, "%08d_%d.png", count, img_cnt);
-                        write_png(imgfile, frame);
+                if (args->quantize && quantize_event(frame, &img, &res)) {
+                    printf("Quantization failed for " FILENAME_FMT FILENAME_EXT ".\n", count);
+                    exit(1);
+                }
+                if (args->split && find_split(frame, args->split)) {
+                    if (args->quantize) {
+                        write_png_palette(count, frame, &img, &res, args, 1);
+                    } else {
+                        for (img_cnt = 0; img_cnt < 2; img_cnt++) {
+                            frame->subx1 = frame->crops[img_cnt].x1;
+                            frame->subx2 = frame->crops[img_cnt].x2;
+                            frame->suby1 = frame->crops[img_cnt].y1;
+                            frame->suby2 = frame->crops[img_cnt].y2;
+                            snprintf(imgfile, 15, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, img_cnt);
+                            write_png(imgfile, frame);
+                        }
                     }
                 } else {
-                    snprintf(imgfile, 15, "%08d.png", count);
-                    write_png(imgfile, frame);
+                    if (args->quantize) {
+                        write_png_palette(count, frame, &img, &res, args, 0);
+                    } else {
+                        snprintf(imgfile, 15, FILENAME_FMT FILENAME_EXT, count);
+                        write_png(imgfile, frame);
+                    }
                 }
-
+                if (args->quantize) {
+                    liq_result_destroy(res);
+                    liq_image_destroy(img);
+                }
                 count++;
             }
             /* fall through */
@@ -476,6 +686,8 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
 finish:
     free(frame->buffer);
     free(frame);
+    if (args->quantize && attr)
+        liq_attr_destroy(attr);
     ass_free_track(track);
     ass_renderer_done(ass_renderer);
     ass_library_done(ass_library);
