@@ -191,10 +191,11 @@ int main(int argc, char *argv[])
     }
 
     static struct option longopts[] = {
-        {"split",        no_argument,       0, 's'},
         {"dvd-mode",     no_argument,       0, 'd'},
         {"hinting",      no_argument,       0, 'g'},
         {"negative",     no_argument,       0, 'z'},
+        {"rleopt",       no_argument,       0, 'r'},
+        {"split",        required_argument, 0, 's'},
         {"trackname",    required_argument, 0, 't'},
         {"language",     required_argument, 0, 'l'},
         {"video-format", required_argument, 0, 'v'},
@@ -212,7 +213,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "zsdgt:l:v:f:w:h:x:y:p:a:o:q:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "zdgrt:l:v:f:w:h:x:y:p:a:o:q:s:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -242,8 +243,15 @@ int main(int argc, char *argv[])
             case 'g':
                 args.hinting = 1;
                 break;
+            case 'r':
+                args.rle_optimise = 1;
+                break;
             case 's':
-                args.split = 1;
+                args.split = (uint8_t)strtol(optarg, NULL, 10);
+                if (args.split > 2) {
+                    printf("Invalid split mode.\n");
+                    exit(1);
+                }
                 break;
             case 'o':
                 tc_to_tcarray(optarg, offset_vals);
@@ -352,6 +360,10 @@ int main(int argc, char *argv[])
     args.offset = tcarray_to_frame(offset_vals, frate);
     if (negative_offset)
         args.offset *= -1;
+
+    //RLE optimise discard palette entry zero, we have 254 usable colors.
+    if (args.rle_optimise && args.quantize == 255)
+        args.quantize -= 1;
 
     evlist = render_subs(subfile, frate, &args);
 

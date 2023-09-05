@@ -89,7 +89,7 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("\n");
 }
 
-static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, liq_result **res)
+static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, liq_result **res, uint8_t rle_optimise)
 {
     FILE *fp;
     png_structp png_ptr;
@@ -99,6 +99,7 @@ static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, l
 
     w = rgba_img->subx2 - rgba_img->subx1 + 1;
     h = rgba_img->suby2 - rgba_img->suby1 + 1;
+    rle_optimise = (rle_optimise > 0) & 0x01;
 
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     info_ptr = png_create_info_struct(png_ptr);
@@ -117,22 +118,31 @@ static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, l
     }
 
     const liq_palette *liq_pal = liq_get_palette(*res);
-    png_color* palette = (png_color*)png_malloc(png_ptr, liq_pal->count*sizeof(png_color));
-    png_byte* trans = (png_byte*)png_malloc(png_ptr, liq_pal->count);
+    png_color* palette = (png_color*)png_malloc(png_ptr, (liq_pal->count + rle_optimise)*sizeof(png_color));
+    png_byte* trans = (png_byte*)png_malloc(png_ptr, liq_pal->count + rle_optimise);
 
     uint8_t* bitmap = (uint8_t*)malloc(rgba_img->width*rgba_img->height);
     liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*rgba_img->height);
 
     for (k = 0; k < liq_pal->count; k++)
     {
-        png_color* col = &palette[k];
+        png_color* col = &palette[k+rle_optimise];
         //palettized as BGR, flip B and R.
         col->red = liq_pal->entries[k].b;
         col->green = liq_pal->entries[k].g;
         col->blue = liq_pal->entries[k].r;
-        trans[k] = liq_pal->entries[k].a;
+        trans[k+rle_optimise] = liq_pal->entries[k].a;
     }
 
+    //Palette entry zero is annoying in PGS, let's use it for a single pixel so authoring software can't shift the palette to id zero.
+    if (rle_optimise) {
+        for (k = 1; k < rgba_img->width*rgba_img->height; k++)
+            bitmap[k] += 1;
+        memcpy(&palette[0], &palette[bitmap[0]], sizeof(png_color));
+        trans[0] = trans[bitmap[0]];
+        bitmap[0] = 0;
+    }
+    
     png_init_io(png_ptr, fp);
     png_set_compression_level(png_ptr, 3);
 
@@ -141,8 +151,8 @@ static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, l
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     //Write palette and alpha
-    png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count);
-    png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count, NULL);
+    png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count + rle_optimise);
+    png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count + rle_optimise, NULL);
     png_write_info(png_ptr, info_ptr);
 
     png_byte *row;
@@ -152,6 +162,7 @@ static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, l
     }
     png_write_end(png_ptr, NULL);
 
+    free(bitmap);
     png_free(png_ptr, trans);
     png_free(png_ptr, palette);
     png_destroy_write_struct(&png_ptr, &info_ptr);
@@ -357,7 +368,7 @@ static void blend(image_t *frame, ASS_Image *img)
     }
 }
 
-static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
+static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
 {
     int pixelExist;
     int xk, yk;
@@ -403,7 +414,53 @@ static void find_bbox(image_t *frame, int y_start, int y_stop, const int margin,
     }
 }
 
-static int find_split(image_t *frame)
+static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int margin, BoundingBox_t *box)
+{
+    uint8_t pixelExist;
+    int xk, yk;
+
+    //top
+    pixelExist = 0;
+    for (yk = frame->suby1; (yk < frame->suby2 - margin) && !pixelExist; yk++) {
+        for (xk = x_start; xk < x_stop; xk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        }
+    }
+    box->y1 = MAX(yk-1, frame->suby1);
+
+    //bottom
+    pixelExist = 0;
+    for (yk = frame->suby2; (yk > frame->suby1 + margin) && !pixelExist; yk--) {
+        for (xk = x_start; xk < x_stop; xk++) {
+            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        }
+    }
+    box->y2 = MIN(yk+1, frame->suby2);
+
+    if (x_start == frame->subx1) {
+        box->x1 = frame->subx1;
+
+        pixelExist = 0;
+        for (xk = x_stop; xk > x_start + margin && !pixelExist; xk--) {
+            for (yk = box->y1; yk <= box->y2; yk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+            }
+        }
+        box->x2 = MIN(xk+1, x_stop);
+    } else {
+        box->x2 = frame->subx2;
+
+        pixelExist = 0;
+        for (xk = x_start; xk < x_stop - margin && !pixelExist; xk++) {
+            for (yk = box->y1; yk <= box->y2; yk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+            }
+        }
+        box->x1 = MAX(xk-1, x_start);
+    }
+}
+
+static int find_split(image_t *frame, uint8_t split_mode)
 {
     const int margin = 8;
     uint32_t best_score = (uint32_t)(-1);
@@ -420,6 +477,7 @@ static int find_split(image_t *frame)
     BoundingBox_t eval[2];
     uint32_t surface = 0;
 
+    //Search for a horizontal split
     for (yk = frame->suby1 + margin; yk < frame->suby2 - margin; yk+=margin) {
         pixelExist = 0;
         for (xk = frame->subx1; xk < frame->subx2 && !pixelExist; xk++) {
@@ -431,8 +489,8 @@ static int find_split(image_t *frame)
             continue;
         }
 
-        find_bbox(frame, frame->suby1, yk, margin, &eval[0]);
-        find_bbox(frame, yk, frame->suby2, margin, &eval[1]);
+        find_bbox_ysplit(frame, frame->suby1, yk, margin, &eval[0]);
+        find_bbox_ysplit(frame, yk, frame->suby2, margin, &eval[1]);
 
         surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
         if (surface < best_score) {
@@ -440,6 +498,30 @@ static int find_split(image_t *frame)
             memcpy(frame->crops, eval, sizeof(eval));
         }
     }
+    if (split_mode == 2) {
+        //Search for a vertical split
+        for (xk = frame->subx1 + margin; xk < frame->subx2 - margin; xk+=margin) {
+            pixelExist = 0;
+            for (yk = frame->suby1; yk < frame->suby2 && !pixelExist; yk++) {
+                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
+            }
+
+            //Line is used by data, skip to the next split.
+            if (pixelExist) {
+                continue;
+            }
+
+            find_bbox_xsplit(frame, frame->subx1, xk, margin, &eval[0]);
+            find_bbox_xsplit(frame, xk, frame->subx2, margin, &eval[1]);
+
+            surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
+            if (surface < best_score) {
+                best_score = surface;
+                memcpy(frame->crops, eval, sizeof(eval));
+            }
+        }
+    }
+
     return best_score < (uint32_t)(-1);
 }
 
@@ -483,7 +565,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
 
 static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res)
 {
-    *img = liq_image_create_rgba(attr, /*&*/frame->buffer/*[frame->stride*frame->y1]*/, frame->width, frame->height, 0);
+    *img = liq_image_create_rgba(attr, frame->buffer/*[frame->stride*frame->suby1]*/, frame->width, frame->height, 0);
     if (*img == NULL) {
         return -1;
     }
@@ -530,7 +612,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                     printf("Quantization failed for %08d.png.\n", count);
                     exit(1);
                 }
-                if (args->split && find_split(frame)) {
+                if (args->split && find_split(frame, args->split)) {
                     for (img_cnt = 0; img_cnt < 2; img_cnt++) {
                         frame->subx1 = frame->crops[img_cnt].x1;
                         frame->subx2 = frame->crops[img_cnt].x2;
@@ -538,7 +620,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                         frame->suby2 = frame->crops[img_cnt].y2;
                         snprintf(imgfile, 15, "%08d_%d.png", count, img_cnt);
                         if (args->quantize) {
-                            write_png_palette(imgfile, frame, &img, &res);
+                            write_png_palette(imgfile, frame, &img, &res, args->rle_optimise);
                         } else {
                             write_png(imgfile, frame);
                         }
@@ -546,7 +628,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                 } else {
                     snprintf(imgfile, 15, "%08d.png", count);
                     if (args->quantize) {
-                        write_png_palette(imgfile, frame, &img, &res);
+                        write_png_palette(imgfile, frame, &img, &res, args->rle_optimise);
                     } else {
                         write_png(imgfile, frame);
                     }
