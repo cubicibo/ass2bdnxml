@@ -28,13 +28,13 @@
 #include "common.h"
 
 frate_t frates[] = {
-    {"23.976",24, 1000.0 / (24000.0 / 1001.0), 24000, 1001},
-    {"24", 24, 1000.0 / (24.0 / 1.0), 24, 1},
-    {"25", 25, 1000.0 / (25.0 / 1.0), 25, 1},
-    {"29.97", 30, 1000.0 / (30000.0 / 1001.0), 30000, 1001},
-    {"50", 50, 1000.0 / (50.0 / 1.0), 50, 1},
-    {"59.94", 60, 1000.0 / (60000.0 / 1001.0), 60000, 1001},
-    {NULL, 0, 0}
+    {"23.976",24, 24000, 1001},
+    {"24", 24, 24, 1},
+    {"25", 25, 25, 1},
+    {"29.97", 30, 30000, 1001},
+    {"50", 50, 50, 1},
+    {"59.94", 60, 60000, 1001},
+    {NULL, 0, 0, 0}
 };
 
 typedef struct vfmt_s {
@@ -225,6 +225,12 @@ int main(int argc, char *argv[])
         switch (c) {
             case 'p':
                 args.par = strtod(optarg, NULL);
+                if (args.par < 0.1 || args.par > 10) {
+                    printf("Unusual PAR, aborting.\n");
+                    exit(1);
+                }
+                if (args.par > 0)
+                    args.par = 1./args.par;
                 break;
             case 't':
                 track_name = optarg;
@@ -252,7 +258,7 @@ int main(int argc, char *argv[])
                 break;
             case 's':
                 args.split = (uint8_t)strtol(optarg, NULL, 10);
-                if (args.split > 2) {
+                if (args.split > 3) {
                     printf("Invalid split mode.\n");
                     exit(1);
                 }
@@ -291,7 +297,7 @@ int main(int argc, char *argv[])
             case 'q':
                 args.quantize = (uint16_t)strtol(optarg, NULL, 10);
                 if (args.quantize > 255) {
-                    printf("Colours must be within [0; 255] (default: 0, no quantization, 32-bit RGBA PNGs).\n");
+                    printf("Colours must be within [0; 255] (default: 0, no quantization, output are 32-bit RGBA PNGs).\n");
                     exit(1);
                 }
                 break;

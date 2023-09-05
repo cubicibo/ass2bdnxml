@@ -10,7 +10,6 @@ typedef struct BoundingBox_s {
 typedef struct frate_s {
     char *name;
     int rate;
-    double frame_dur;
     uint64_t num;
     uint64_t denom;
 } frate_t;

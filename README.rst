@@ -34,15 +34,15 @@ The following optional arguments are available:
 | Option             | Effect                                                 |
 +====================+========================================================+
 | ``-v``             | Sets the video format to render subtitles in.          |
-| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576i, 480p, 480i          |
+| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576i, 480p, 480i.         |
 |                    | Default: ``1080p``                                     |
 +--------------------+--------------------------------------------------------+
 | ``-f``             | Sets the video frame rate.                             |
-| ``--fps``          | Choices: 23.976, 24, 25, 29.97, 50, 59.94              |
+| ``--fps``          | Choices: 23.976, 24, 25, 29.97, 50, 59.94.             |
 |                    | Default: ``23.976``                                    |
 +--------------------+--------------------------------------------------------+
 | ``-q``             | Sets and enable image quantization with N colors.      |
-| ``--quantize``     | Choices: value in [0; 255]                             |
+| ``--quantize``     | Choices: value in [0; 255].                            |
 |                    | Default: ``0`` (Disabled, PNGs are 32-bit RGBA)        |
 |                    | Note: Do not use if the BDNXML is generated for SUPer. |
 |                    | This must be enabled if target software is Scenarist BD|
@@ -51,7 +51,8 @@ The following optional arguments are available:
 | ``--fontdir``      | embedded in the ASS or provided by the OS font manager.|
 +--------------------+--------------------------------------------------------+
 | ``-s``             | Sets the event split across 2 graphics behaviour.      |
-| ``--split``        | 0: Disabled, 1: Normal, 2: Aggressive. Default: ``0``  |
+| ``--split``        | 0: Disabled, 1: Normal, 2: Strong, 3: Very aggressive. |
+|                    | Default: ``0`` (Disabled)                              |
 |                    | Note: Do not use if the BDNXML is generated for SUPer. |
 +--------------------+--------------------------------------------------------+
 | ``-p``             | Sets the ASS pixel aspect ratio. Required for          |
@@ -65,8 +66,8 @@ The following optional arguments are available:
 | ``--negative``     | Ignored if no offset is provided.                      |
 +--------------------+--------------------------------------------------------+
 | ``-r``             | Flag to encode PNGs without using palette entry zero   |
-| ``--rleopt``       | Can maybe prevent RLE/line width errors in Scenarist.  |
-|                    | Ignored if ``--quantize`` is not used.                 |
+| ``--rleopt``       | Can maybe prevent RLE/line width errors in authorign.  |
+|                    | Ignored if 32-bit RGBA output (``--quantize`` unused). |
 +--------------------+--------------------------------------------------------+
 | ``-t``             | Sets the human-readable name of the subtitle track.    |
 | ``--trackname``    | Default: ``Undefined``                                 |
@@ -74,7 +75,7 @@ The following optional arguments are available:
 | ``-l``             | Sets the language of the subtitle track.               |
 | ``--language``     | Default: ``und``                                       |
 +--------------------+--------------------------------------------------------+
-| ``-d``             | Flag to apply a contrast change that hopefully improves|
+| ``-d``             | Flag to apply a contrast change that may improve       |
 | ``--dvd-mode``     | subtitle appearance with the limited resolution and    |
 |                    | color palette of DVD subtitles.                        |
 +--------------------+--------------------------------------------------------+

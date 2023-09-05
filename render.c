@@ -111,7 +111,18 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
     //Get palette from LIQ
     const liq_palette *liq_pal = liq_get_palette(*res);
     png_color* palette = (png_color*)malloc((liq_pal->count + rle_optimise)*sizeof(png_color));
+    if (palette == NULL) {
+        printf("Failed to allocate palette array for " FILENAME_FMT".\n", count);
+        return;
+    }
+
     png_byte* trans = (png_byte*)malloc(liq_pal->count + rle_optimise);
+    if (trans == NULL) {
+        free(palette);
+        printf("Failed to allocate alpha array for " FILENAME_FMT ".\n", count);
+        return;
+    }
+
 
     for (k = 0; k < liq_pal->count; k++)
     {
@@ -154,6 +165,8 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
         if (setjmp(png_jmpbuf(png_ptr))) {
             png_destroy_write_struct(&png_ptr, &info_ptr);
             fclose(fp);
+            free(trans);
+            free(palette);
             printf("Critical error in libpng while processing %s.\n", fname);
             return;
         }
@@ -183,6 +196,7 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
         }
         png_write_end(png_ptr, NULL);
         png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
     }
     free(bitmap);
     free(trans);
@@ -519,7 +533,7 @@ static int find_split(image_t *frame, uint8_t split_mode)
             memcpy(frame->crops, eval, sizeof(eval));
         }
     }
-    if (split_mode == 2) {
+    if (split_mode == 3 || (split_mode == 2 && (frame->suby2 - frame->suby1) > frame->height/2.5)) {
         //Search for a vertical split
         for (xk = frame->subx1 + margin; xk < frame->subx2 - margin; xk+=margin) {
             pixelExist = 0;
