@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Additional changes: Copyright © 2023, cubicibo
+ * The same agreement notice applies.
+ */
+
 #include <getopt.h>
 #include <math.h>
 #include <stdio.h>
