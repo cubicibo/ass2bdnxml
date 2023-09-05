@@ -7,6 +7,10 @@
 
 #include "common.h"
 
+#define FILENAME_FMT "%08d"
+#define FILENAME_CNT "_%d"
+#define FILENAME_EXT ".png"
+
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
@@ -89,40 +93,25 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("\n");
 }
 
-static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, liq_result **res, uint8_t rle_optimise)
+static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split)
 {
     FILE *fp;
     png_structp png_ptr;
     png_infop info_ptr;
 
     int k, w, h;
+    int h_margin, w_margin;
+    char fname[15];
 
     w = rgba_img->subx2 - rgba_img->subx1 + 1;
     h = rgba_img->suby2 - rgba_img->suby1 + 1;
-    rle_optimise = (rle_optimise > 0) & 0x01;
+    h_margin = 0;
+    uint8_t rle_optimise = (args->rle_optimise > 0) & 0x01;
 
-    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    info_ptr = png_create_info_struct(png_ptr);
-
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_write_struct(&png_ptr, &info_ptr);
-        fclose(fp);
-        printf("Critical error in libpng while processing %s.\n", fname);
-        return;
-    }
-
-    fp = fopen(fname, "wb");
-    if (fp == NULL) {
-        printf("PNG Error opening %s for writing!\n", fname);
-        return;
-    }
-
+    //Get palette from LIQ
     const liq_palette *liq_pal = liq_get_palette(*res);
-    png_color* palette = (png_color*)png_malloc(png_ptr, (liq_pal->count + rle_optimise)*sizeof(png_color));
-    png_byte* trans = (png_byte*)png_malloc(png_ptr, liq_pal->count + rle_optimise);
-
-    uint8_t* bitmap = (uint8_t*)malloc(rgba_img->width*rgba_img->height);
-    liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*rgba_img->height);
+    png_color* palette = (png_color*)malloc((liq_pal->count + rle_optimise)*sizeof(png_color));
+    png_byte* trans = (png_byte*)malloc(liq_pal->count + rle_optimise);
 
     for (k = 0; k < liq_pal->count; k++)
     {
@@ -134,38 +123,70 @@ static void write_png_palette(char *fname, image_t *rgba_img, liq_image **img, l
         trans[k+rle_optimise] = liq_pal->entries[k].a;
     }
 
+    //Get bitmap
+    uint8_t* bitmap = (uint8_t*)malloc(rgba_img->width*h);
+    liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*h);
+
     //Palette entry zero is annoying in PGS, let's use it for a single pixel so authoring software can't shift the palette to id zero.
     if (rle_optimise) {
-        for (k = 1; k < rgba_img->width*rgba_img->height; k++)
+        for (k = 1; k < rgba_img->width*h; k++)
             bitmap[k] += 1;
         memcpy(&palette[0], &palette[bitmap[0]], sizeof(png_color));
         trans[0] = trans[bitmap[0]];
         bitmap[0] = 0;
     }
-    
-    png_init_io(png_ptr, fp);
-    png_set_compression_level(png_ptr, 3);
 
-    png_set_IHDR(png_ptr, info_ptr, w, h, 8,
-                 PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    for (uint8_t split_cnt = 0; split_cnt < MIN(2, 1 + is_split); split_cnt++) {
+        if (is_split) {
+            snprintf(fname, 15, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, split_cnt);
+            w = rgba_img->crops[split_cnt].x2 - rgba_img->crops[split_cnt].x1 + 1;
+            h = rgba_img->crops[split_cnt].y2 - rgba_img->crops[split_cnt].y1 + 1;
+            w_margin = rgba_img->crops[split_cnt].x1;
+            h_margin = rgba_img->crops[split_cnt].y1 - rgba_img->suby1;
+        } else {
+            w_margin = rgba_img->subx1;
+            snprintf(fname, 15, FILENAME_FMT FILENAME_EXT, count);
+        }
 
-    //Write palette and alpha
-    png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count + rle_optimise);
-    png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count + rle_optimise, NULL);
-    png_write_info(png_ptr, info_ptr);
+        png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        info_ptr = png_create_info_struct(png_ptr);
 
-    png_byte *row;
-    for (int k = 0; k < h; k++) {
-        row = (png_byte*)(bitmap + (k + rgba_img->suby1)*rgba_img->width + rgba_img->subx1);
-        png_write_row(png_ptr, row);
+        if (setjmp(png_jmpbuf(png_ptr))) {
+            png_destroy_write_struct(&png_ptr, &info_ptr);
+            fclose(fp);
+            printf("Critical error in libpng while processing %s.\n", fname);
+            return;
+        }
+
+        fp = fopen(fname, "wb");
+        if (fp == NULL) {
+            printf("Error opening %s for writing!\n", fname);
+            return;
+        }
+
+        png_init_io(png_ptr, fp);
+        png_set_compression_level(png_ptr, 3);
+
+        png_set_IHDR(png_ptr, info_ptr, w, h, 8,
+                     PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
+                     PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+        //Write palette and alpha
+        png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count + rle_optimise);
+        png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count + rle_optimise, NULL);
+        png_write_info(png_ptr, info_ptr);
+
+        png_byte *row;
+        for (int k = 0; k < h; k++) {
+            row = (png_byte*)(bitmap + (k + h_margin)*rgba_img->width + w_margin);
+            png_write_row(png_ptr, row);
+        }
+        png_write_end(png_ptr, NULL);
+        png_destroy_write_struct(&png_ptr, &info_ptr);
     }
-    png_write_end(png_ptr, NULL);
-
     free(bitmap);
-    png_free(png_ptr, trans);
-    png_free(png_ptr, palette);
-    png_destroy_write_struct(&png_ptr, &info_ptr);
+    free(trans);
+    free(palette);
 }
 
 static void write_png(char *fname, image_t *img)
@@ -565,7 +586,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
 
 static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res)
 {
-    *img = liq_image_create_rgba(attr, frame->buffer/*[frame->stride*frame->suby1]*/, frame->width, frame->height, 0);
+    *img = liq_image_create_rgba(attr, &frame->buffer[frame->stride*frame->suby1], frame->width, frame->suby2-frame->suby1+1, 0);
     if (*img == NULL) {
         return -1;
     }
@@ -581,6 +602,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
     long long tm = 0;
     int count = 0, fres = 0, img_cnt = 0;
     uint64_t frame_cnt = 1;
+    char imgfile[15];
 
     liq_result *res;
     liq_image *img;
@@ -607,29 +629,28 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
         switch (fres) {
             case 3:
             {
-                char imgfile[15];
                 if (args->quantize && quantize_event(frame, &img, &res)) {
-                    printf("Quantization failed for %08d.png.\n", count);
+                    printf("Quantization failed for " FILENAME_FMT FILENAME_EXT ".\n", count);
                     exit(1);
                 }
                 if (args->split && find_split(frame, args->split)) {
-                    for (img_cnt = 0; img_cnt < 2; img_cnt++) {
-                        frame->subx1 = frame->crops[img_cnt].x1;
-                        frame->subx2 = frame->crops[img_cnt].x2;
-                        frame->suby1 = frame->crops[img_cnt].y1;
-                        frame->suby2 = frame->crops[img_cnt].y2;
-                        snprintf(imgfile, 15, "%08d_%d.png", count, img_cnt);
-                        if (args->quantize) {
-                            write_png_palette(imgfile, frame, &img, &res, args->rle_optimise);
-                        } else {
+                    if (args->quantize) {
+                        write_png_palette(count, frame, &img, &res, args, 1);
+                    } else {
+                        for (img_cnt = 0; img_cnt < 2; img_cnt++) {
+                            frame->subx1 = frame->crops[img_cnt].x1;
+                            frame->subx2 = frame->crops[img_cnt].x2;
+                            frame->suby1 = frame->crops[img_cnt].y1;
+                            frame->suby2 = frame->crops[img_cnt].y2;
+                            snprintf(imgfile, 15, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, img_cnt);
                             write_png(imgfile, frame);
                         }
                     }
                 } else {
-                    snprintf(imgfile, 15, "%08d.png", count);
                     if (args->quantize) {
-                        write_png_palette(imgfile, frame, &img, &res, args->rle_optimise);
+                        write_png_palette(count, frame, &img, &res, args, 0);
                     } else {
+                        snprintf(imgfile, 15, FILENAME_FMT FILENAME_EXT, count);
                         write_png(imgfile, frame);
                     }
                 }

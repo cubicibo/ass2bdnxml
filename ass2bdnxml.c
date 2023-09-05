@@ -290,8 +290,8 @@ int main(int argc, char *argv[])
                 break;
             case 'q':
                 args.quantize = (uint16_t)strtol(optarg, NULL, 10);
-                if (args.quantize == 0 || args.quantize > 255) {
-                    printf("Colours must be within [0; 255] (0 = no quantization).\n");
+                if (args.quantize > 255) {
+                    printf("Colours must be within [0; 255] (default: 0, no quantization, 32-bit RGBA PNGs).\n");
                     exit(1);
                 }
                 break;
