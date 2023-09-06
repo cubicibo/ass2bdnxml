@@ -495,7 +495,7 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
     }
 }
 
-static int find_split(image_t *frame, uint8_t split_mode)
+static int find_split(image_t *frame, opts_t *args)
 {
     const int margin = 8;
     uint32_t best_score = (uint32_t)(-1);
@@ -528,12 +528,12 @@ static int find_split(image_t *frame, uint8_t split_mode)
         find_bbox_ysplit(frame, yk, frame->suby2, margin, &eval[1]);
 
         surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
-        if (surface < best_score) {
+        if (surface < best_score && abs(eval[0].y2 - eval[1].y1) >= args->splitmargin[0]) {
             best_score = surface;
             memcpy(frame->crops, eval, sizeof(eval));
         }
     }
-    if (split_mode == 3 || (split_mode == 2 && (frame->suby2 - frame->suby1) > frame->height/2.5)) {
+    if (args->split == 3 || (args->split == 2 && (frame->suby2 - frame->suby1) > frame->height/2.5)) {
         //Search for a vertical split
         for (xk = frame->subx1 + margin; xk < frame->subx2 - margin; xk+=margin) {
             pixelExist = 0;
@@ -550,7 +550,7 @@ static int find_split(image_t *frame, uint8_t split_mode)
             find_bbox_xsplit(frame, xk, frame->subx2, margin, &eval[1]);
 
             surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
-            if (surface < best_score) {
+            if (surface < best_score && abs(eval[0].x2 - eval[1].x1) >= args->splitmargin[1]) {
                 best_score = surface;
                 memcpy(frame->crops, eval, sizeof(eval));
             }
@@ -647,7 +647,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                     printf("Quantization failed for " FILENAME_FMT FILENAME_EXT ".\n", count);
                     exit(1);
                 }
-                if (args->split && find_split(frame, args->split)) {
+                if (args->split && find_split(frame, args)) {
                     if (args->quantize) {
                         write_png_palette(count, frame, &img, &res, args, 1);
                     } else {

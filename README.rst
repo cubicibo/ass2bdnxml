@@ -44,7 +44,7 @@ The following optional arguments are available:
 | ``-q``             | Sets and enable image quantization with N colors.      |
 | ``--quantize``     | Choices: value in [0; 255].                            |
 |                    | Default: ``0`` (Disabled, PNGs are 32-bit RGBA)        |
-|                    | Note: Do not use if the BDNXML is generated for SUPer. |
+|                    | Notes: Do not use if the BDNXML is generated for SUPer.|
 |                    | This must be enabled if target software is Scenarist BD|
 +--------------------+--------------------------------------------------------+
 | ``-a``             | Sets an additional font directory for custom fonts not |
@@ -54,6 +54,11 @@ The following optional arguments are available:
 | ``--split``        | 0: Disabled, 1: Normal, 2: Strong, 3: Very aggressive. |
 |                    | Default: ``0`` (Disabled)                              |
 |                    | Note: Do not use if the BDNXML is generated for SUPer. |
++--------------------+--------------------------------------------------------+
+| ``-m``             | Sets the vertical and opt. horizontal margins to split |
+| ``--splitmargin``  | Format: ``VxH`` (V=y difference, H=x difference).      |
+|                    | Default: 0x0. Split search is done on 8x8 grid anyway. |
+|                    | Note: If only V is given, 'x' separator must be omitted|
 +--------------------+--------------------------------------------------------+
 | ``-p``             | Sets the ASS pixel aspect ratio. Required for          |
 | ``--par``          | anamorphic content. Defaults to libass default value.  |

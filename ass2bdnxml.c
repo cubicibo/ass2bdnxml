@@ -59,7 +59,7 @@ static void die_usage(const char *name)
     exit(1);
 }
 
-void tc_to_tcarray(char *buf, uint8_t *vals)
+static void tc_to_tcarray(char *buf, uint8_t *vals)
 {
     uint8_t hits = 0;
 
@@ -80,7 +80,7 @@ void tc_to_tcarray(char *buf, uint8_t *vals)
     }
 }
 
-uint64_t tcarray_to_frame(uint8_t *vals, frate_t *fps)
+static uint64_t tcarray_to_frame(uint8_t *vals, frate_t *fps)
 {
     if (vals[3] >= fps->rate) {
         printf("Frame in TC is above framerate: %d >= %d\n", vals[3], fps->rate);
@@ -91,6 +91,26 @@ uint64_t tcarray_to_frame(uint8_t *vals, frate_t *fps)
     offset += 60*fps->rate*(uint64_t)vals[1];
     offset += 3600*fps->rate*(uint64_t)vals[0];
     return offset;
+}
+
+static void parse_margins(char *buf, uint16_t *margins) 
+{
+    uint8_t k = 0;
+    uint8_t idx = 0;
+    for (k = 0; k < 9 && buf[k]; k++) {
+        if (buf[k] == 'x' && idx == 0) {
+            idx = 1;
+        } else if (buf[k] >= '0' && buf[k] <= '9') {
+            margins[idx] = margins[idx]*10 + (uint16_t)(buf[k] - '0');
+        } else /*if ((buf[k] == 'x' && idx == 1) || (idx == 0 && k > 4))*/ {
+            printf("Invalid margins format, expected 'VxH' (akin to 1080x1920), got %s\n", buf);
+            exit(1);
+        }
+    }
+    if (k >= 5 && idx == 0) {
+        printf("Invalid margins format.\n");
+        exit(1);
+    }
 }
 
 static void frame_to_tc(uint64_t frames, frate_t *fps, char *buf)
@@ -200,6 +220,7 @@ int main(int argc, char *argv[])
         {"negative",     no_argument,       0, 'z'},
         {"rleopt",       no_argument,       0, 'r'},
         {"split",        required_argument, 0, 's'},
+        {"splitmargin",  required_argument, 0, 'm'},
         {"trackname",    required_argument, 0, 't'},
         {"language",     required_argument, 0, 'l'},
         {"video-format", required_argument, 0, 'v'},
@@ -217,7 +238,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "zdgrt:l:v:f:w:h:x:y:p:a:o:q:s:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "zdgrt:l:v:f:w:h:x:y:p:a:o:q:s:m:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -262,6 +283,9 @@ int main(int argc, char *argv[])
                     printf("Invalid split mode.\n");
                     exit(1);
                 }
+                break;
+            case 'm':
+                parse_margins(optarg, args.splitmargin);
                 break;
             case 'o':
                 tc_to_tcarray(optarg, offset_vals);
@@ -348,6 +372,11 @@ int main(int argc, char *argv[])
     }
     args.frame_h = vfmt->h;
     args.frame_w = vfmt->w;
+
+    if ((args.splitmargin[1] > (args.frame_h*3)/4) || (args.splitmargin[0] > (args.frame_w*3)/4)) {
+        printf("Excessive split margin(s), should be less than 3/4 of video height or width.\n");
+        exit(1);
+    }
 
     // Some mapping
     if (args.render_w == 0)

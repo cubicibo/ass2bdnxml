@@ -37,6 +37,7 @@ typedef struct opts_s {
     int storage_w;
     int storage_h;
     uint16_t quantize;
+    uint16_t splitmargin[2];
     uint8_t dvd_mode;
     uint8_t hinting;
     uint8_t split;
