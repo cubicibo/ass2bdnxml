@@ -74,6 +74,9 @@ The following optional arguments are available:
 | ``--rleopt``       | Can maybe prevent RLE/line width errors in authorign.  |
 |                    | Ignored if 32-bit RGBA output (``--quantize`` unused). |
 +--------------------+--------------------------------------------------------+
+| ``-c``             | Flag to name the output XML according to the input ASS |
+| ``--copyname``     | file. The input ASS file must have a valid extension.  |
++--------------------+--------------------------------------------------------+
 | ``-t``             | Sets the human-readable name of the subtitle track.    |
 | ``--trackname``    | Default: ``Undefined``                                 |
 +--------------------+--------------------------------------------------------+

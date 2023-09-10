@@ -131,7 +131,7 @@ static void frame_to_tc(uint64_t frames, frate_t *fps, char *buf)
     }
 }
 
-void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
+void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate, char *bdnfile,
                char *track_name, char *language, opts_t *args)
 {
     int x_margin = args->render_w < args->frame_w ? (args->frame_w-args->render_w) >> 1 : 0;
@@ -139,7 +139,12 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
 
     int i;
     char buf_in[12], buf_out[12];
-    FILE *of = fopen("bdn.xml", "w");
+    FILE *of;
+    if (bdnfile == NULL) {
+        of = fopen("bdn.xml", "w");
+    } else {
+        of = fopen(bdnfile, "w");
+    }
 
     if (of == NULL) {
         perror("Error opening output XML file.");
@@ -194,6 +199,7 @@ void write_xml(eventlist_t *evlist, vfmt_t *vfmt, frate_t *frate,
 int main(int argc, char *argv[])
 {
     char *subfile = NULL;
+    char *bdnfile = NULL;
     char *track_name = "Undefined";
     char *language = "und";
     char *video_format = "1080p";
@@ -203,6 +209,7 @@ int main(int argc, char *argv[])
     vfmt_t *vfmt = NULL;
     eventlist_t *evlist;
 
+    uint8_t copy_name = 0;
     uint8_t negative_offset = 0;
     uint8_t offset_vals[4];
     memset(offset_vals, 0, sizeof(offset_vals));
@@ -219,6 +226,7 @@ int main(int argc, char *argv[])
         {"hinting",      no_argument,       0, 'g'},
         {"negative",     no_argument,       0, 'z'},
         {"rleopt",       no_argument,       0, 'r'},
+        {"copyname",     no_argument, 0, 'c'},
         {"split",        required_argument, 0, 's'},
         {"splitmargin",  required_argument, 0, 'm'},
         {"trackname",    required_argument, 0, 't'},
@@ -238,7 +246,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "zdgrt:l:v:f:w:h:x:y:p:a:o:q:s:m:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "czdgrt:l:v:f:w:h:x:y:p:a:o:q:s:m:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -255,6 +263,9 @@ int main(int argc, char *argv[])
                 break;
             case 't':
                 track_name = optarg;
+                break;
+            case 'c':
+                copy_name = 1;
                 break;
             case 'l':
                 language = optarg;
@@ -340,6 +351,29 @@ int main(int argc, char *argv[])
         printf("Only a single input file allowed.\n");
         exit(1);
     }
+    if (copy_name) {
+        int len = strlen(subfile);
+        int ext_pos = -1;
+
+        for (i = len-1; i >= -1; --i)
+        {
+            if (i == -1 || subfile[i] == '\\'|| subfile[i] == '/') {
+                bdnfile = (char*)malloc(len - i + 1);
+                memcpy(bdnfile, &subfile[i+1], len - i);
+                break;
+            } else if (subfile[i] == '.' && ext_pos == -1 && i < len-3) {
+                ext_pos = i;
+            }
+        }
+        if (bdnfile == NULL || ext_pos == -1) {
+            printf("Failed to identify filename or not standard ASS extension.\n");
+            exit(1);
+        }
+        bdnfile[len - i - 4] = 'x';
+        bdnfile[len - i - 3] = 'm';
+        bdnfile[len - i - 2] = 'l';
+        bdnfile[len - i - 1] = 0;
+    }
 
     i = 0;
 
@@ -406,13 +440,15 @@ int main(int argc, char *argv[])
 
     evlist = render_subs(subfile, frate, &args);
 
-    write_xml(evlist, vfmt, frate, track_name, language, &args);
+    write_xml(evlist, vfmt, frate, bdnfile, track_name, language, &args);
 
     for (i = 0; i < evlist->nmemb; i++) {
         free(evlist->events[i]);
     }
 
     free(evlist);
+    if (bdnfile)
+        free(bdnfile);
 
     return 0;
 }
