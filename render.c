@@ -140,7 +140,7 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
 
     //Palette entry zero is annoying in PGS, let's use it for a single pixel so authoring software can't shift the palette to id zero.
     if (rle_optimise) {
-        for (k = 1; k < rgba_img->width*h; k++)
+        for (k = 0; k < rgba_img->width*h; k++)
             bitmap[k] += 1;
         memcpy(&palette[0], &palette[bitmap[0]], sizeof(png_color));
         trans[0] = trans[bitmap[0]];
