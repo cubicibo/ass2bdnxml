@@ -44,7 +44,7 @@ The following optional arguments are available:
 | ``-q``             | Sets and enable image quantization with N colors.      |
 | ``--quantize``     | Choices: value in [0; 255].                            |
 |                    | Default: ``0`` (Disabled, PNGs are 32-bit RGBA)        |
-|                    | Notes: Do not use if the BDNXML is generated for SUPer.|
+|                    | **Notes: Do not use if target is SUPer.**              |
 |                    | This must be enabled if target software is Scenarist BD|
 +--------------------+--------------------------------------------------------+
 | ``-a``             | Sets an additional font directory for custom fonts not |
@@ -53,7 +53,7 @@ The following optional arguments are available:
 | ``-s``             | Sets the event split across 2 graphics behaviour.      |
 | ``--split``        | 0: Disabled, 1: Normal, 2: Strong, 3: Very aggressive. |
 |                    | Default: ``0`` (Disabled)                              |
-|                    | Note: Do not use if the BDNXML is generated for SUPer. |
+|                    | **Note: Do not use if target is SUPer.**               |
 +--------------------+--------------------------------------------------------+
 | ``-m``             | Sets the vertical and opt. horizontal margins to split |
 | ``--splitmargin``  | Format: ``VxH`` (V=y difference, H=x difference).      |
@@ -95,7 +95,7 @@ The following optional arguments are available:
 | ``--render-height``| Defaults to output height if not specified. Some ass   |
 |                    | tags may not render properly if the value is improper. |
 +--------------------+--------------------------------------------------------+
-| ``-g``             | Flag to enable libass hinting.                         |
+| ``-g``             | Flag to enable libass soft hinting.                    |
 | ``--hinting``      |                                                        |
 +--------------------+--------------------------------------------------------+
 | ``-x``             | Sets the ASS storage width. I.e the pre-anamorphic     |
@@ -103,4 +103,21 @@ The following optional arguments are available:
 +--------------------+--------------------------------------------------------+
 | ``-y``             | Sets the ASS storage height. Last resort option for    |
 | ``--height-store`` | ASS with complex transforms with unusual video height. |
++--------------------+--------------------------------------------------------+
+
+Below are parameters to tune libimagequant (LIQ). Those shall only be used along ``--quantize`` (``-q``). Only long parameters names are available.
+
++--------------------+--------------------------------------------------------+
+| Option             | Effect                                                 |
++====================+========================================================+
+| ``--liq-speed``    | LIQ speed. Lower value are slower but higher quality.  |
+|                    | Choices: value within [1; 10] incl. Default: ``4``     |
++--------------------+--------------------------------------------------------+
+| ``--liq-quality``  | Quantization quality. Values < 100 can be visually     |
+|                    | lossless and will compress way better as PGS.          |
+|                    | Default: ``100`` but 90~97 is recommended in general.  |
++--------------------+--------------------------------------------------------+
+| ``--liq-dither``   | Dithering level, value must be within [0; 1.0] incl.   |
+|                    | Default: ``1.0``. Disable: ``0``. LIQ dithering is soft|
+|                    | so default or ``0.5`` is perfect in general.           |
 +--------------------+--------------------------------------------------------+

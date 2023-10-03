@@ -53,6 +53,10 @@ vfmt_t vfmts[] = {
     {NULL, 0, 0}
 };
 
+#define OPT_LIQ_SPEED   1000
+#define OPT_LIQ_DITHER  1001
+#define OPT_LIQ_MAXQUAL 1002
+
 static void die_usage(const char *name)
 {
     printf("usage: %s <subtitle file> [options]\n", name);
@@ -209,12 +213,15 @@ int main(int argc, char *argv[])
     vfmt_t *vfmt = NULL;
     eventlist_t *evlist;
 
+    uint8_t liq_params = 0;
     uint8_t copy_name = 0;
     uint8_t negative_offset = 0;
     uint8_t offset_vals[4];
     memset(offset_vals, 0, sizeof(offset_vals));
 
     opts_t args;
+    liqopts_t liqargs = {.dither=1.0f, .speed=4, .max_quality=100};
+
     memset(&args, 0, sizeof(args));
 
     if (argc < 2) {
@@ -226,7 +233,7 @@ int main(int argc, char *argv[])
         {"hinting",      no_argument,       0, 'g'},
         {"negative",     no_argument,       0, 'z'},
         {"rleopt",       no_argument,       0, 'r'},
-        {"copyname",     no_argument, 0, 'c'},
+        {"copyname",     no_argument,       0, 'c'},
         {"split",        required_argument, 0, 's'},
         {"splitmargin",  required_argument, 0, 'm'},
         {"trackname",    required_argument, 0, 't'},
@@ -241,31 +248,40 @@ int main(int argc, char *argv[])
         {"fontdir",      required_argument, 0, 'a'},
         {"offset",       required_argument, 0, 'o'},
         {"quantize",     required_argument, 0, 'q'},
+        {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
+        {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
+        {"liq-speed",    required_argument, 0, OPT_LIQ_SPEED},
         {0, 0, 0, 0}
     };
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "czdgrt:l:v:f:w:h:x:y:p:a:o:q:s:m:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "czdgjrt:l:v:f:w:h:x:y:p:a:o:q:s:m:k:", longopts, &opt_index);
 
         if (c == -1)
             break;
 
         switch (c) {
-            case 'p':
-                args.par = strtod(optarg, NULL);
-                if (args.par < 0.1 || args.par > 10) {
-                    printf("Unusual PAR, aborting.\n");
-                    exit(1);
-                }
-                if (args.par > 0)
-                    args.par = 1./args.par;
-                break;
-            case 't':
-                track_name = optarg;
+            case 'a':
+                args.fontdir = optarg;
                 break;
             case 'c':
                 copy_name = 1;
+                break;
+            case 'd':
+                args.dvd_mode = 1;
+                break;
+            case 'z':
+                negative_offset = 1;
+                break;
+            case 'r':
+                args.rle_optimise = 1;
+                break;
+            case 'g':
+                args.hinting = 1;
+                break;
+            case 't':
+                track_name = optarg;
                 break;
             case 'l':
                 language = optarg;
@@ -276,17 +292,13 @@ int main(int argc, char *argv[])
             case 'f':
                 frame_rate = optarg;
                 break;
-            case 'd':
-                args.dvd_mode = 1;
-                break;
-            case 'z':
-                negative_offset = 1;
-                break;
-            case 'g':
-                args.hinting = 1;
-                break;
-            case 'r':
-                args.rle_optimise = 1;
+            case 'p':
+                args.par = strtod(optarg, NULL);
+                if (args.par < 0.1 || args.par > 10) {
+                    printf("Unusual PAR, aborting.\n");
+                    exit(1);
+                }
+                args.par = 1./args.par;
                 break;
             case 's':
                 args.split = (uint8_t)strtol(optarg, NULL, 10);
@@ -332,12 +344,34 @@ int main(int argc, char *argv[])
             case 'q':
                 args.quantize = (uint16_t)strtol(optarg, NULL, 10);
                 if (args.quantize > 255) {
-                    printf("Colours must be within [0; 255] (default: 0, no quantization, output are 32-bit RGBA PNGs).\n");
+                    printf("Colours must be within [0; 255] incl. (default: 0, no quantization, output are 32-bit RGBA PNGs).\n");
                     exit(1);
                 }
+                args.quantize += (args.quantize == 1);
                 break;
-            case 'a':
-                args.fontdir = optarg;
+            case OPT_LIQ_SPEED:
+                liqargs.speed = (uint8_t)strtol(optarg, NULL, 10);
+                if (liqargs.speed == 0 || liqargs.speed > 10) {
+                    printf("Invalid libimagequant speed setting. Must be within [1; 10] incl. Default: 4.\n");
+                    exit(1);
+                }
+                liq_params |= 1;
+                break;
+            case OPT_LIQ_MAXQUAL:
+                liqargs.max_quality = (uint8_t)strtol(optarg, NULL, 10);
+                if (liqargs.max_quality == 0 || liqargs.max_quality > 100) {
+                    printf("Invalid libimagequant max quality setting. Must be within [1; 100] incl. Default: 100.\n");
+                    exit(1);
+                }
+                liq_params |= 1;
+                break;
+            case OPT_LIQ_DITHER:
+                liqargs.dither = (float)strtod(optarg, NULL);
+                if (liqargs.dither > 1.0f || liqargs.dither < 0.0f) {
+                    printf("Dithering level must be within [0.0; 1.0] incl. Default: 1 (enabled, maximum).\n");
+                    exit(1);
+                }
+                liq_params |= 1;
                 break;
             default:
                 die_usage(argv[0]);
@@ -434,11 +468,17 @@ int main(int argc, char *argv[])
     if (negative_offset)
         args.offset *= -1;
 
-    //RLE optimise discard palette entry zero, we have 254 usable colors.
-    if (args.rle_optimise && args.quantize == 255)
-        args.quantize -= 1;
+    if (args.quantize) {
+        //RLE optimise discard palette entry zero, we have 254 usable colors.
+        if (args.rle_optimise && args.quantize == 255)
+            args.quantize -= 1;
+        liqargs.max_quality = MAX(0, MIN(100, liqargs.max_quality));
+    } else if (liq_params) {
+        printf("Set up libimagequant parameters but not using --quantize.\n");
+        exit(1);
+    }
 
-    evlist = render_subs(subfile, frate, &args);
+    evlist = render_subs(subfile, frate, &args, &liqargs);
 
     write_xml(evlist, vfmt, frate, bdnfile, track_name, language, &args);
 

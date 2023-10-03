@@ -1,5 +1,8 @@
 #include <stdint.h>
 
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define MIN(a,b) ((a) > (b) ? (b) : (a))
+
 typedef struct BoundingBox_s {
     int x1;
     int x2;
@@ -38,11 +41,18 @@ typedef struct opts_s {
     int storage_h;
     uint16_t quantize;
     uint16_t splitmargin[2];
-    uint8_t dvd_mode;
-    uint8_t hinting;
-    uint8_t split;
-    uint8_t rle_optimise;
+    uint8_t dvd_mode     : 1;
+    uint8_t hinting      : 1;
+    uint8_t split        : 1;
+    uint8_t rle_optimise : 1;
+    uint8_t _pad         : 4;
     const char *fontdir;
 } opts_t;
 
-eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args);
+typedef struct liqopts_s {
+    float dither;
+    uint8_t speed;
+    uint8_t max_quality;
+} liqopts_t;
+
+eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t *liqargs);

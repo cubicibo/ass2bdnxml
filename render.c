@@ -11,8 +11,6 @@
 #define FILENAME_CNT "_%d"
 #define FILENAME_EXT ".png"
 
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
-#define MIN(a,b) ((a) > (b) ? (b) : (a))
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
 
 typedef enum SamplingFlag_s {
@@ -93,7 +91,7 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("\n");
 }
 
-static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split)
+static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split, float dither_val)
 {
     FILE *fp;
     png_structp png_ptr;
@@ -123,7 +121,6 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
         return;
     }
 
-
     for (k = 0; k < liq_pal->count; k++)
     {
         png_color* col = &palette[k+rle_optimise];
@@ -136,6 +133,14 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
 
     //Get bitmap
     uint8_t* bitmap = (uint8_t*)malloc(rgba_img->width*h);
+    if (bitmap == NULL) {
+        free(palette);
+        free(trans);
+        printf("Failed to allocate bitmap array for " FILENAME_FMT ".\n", count);
+        return;
+    }
+
+    liq_set_dithering_level(*res, dither_val);
     liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*h);
 
     //Palette entry zero is annoying in PGS, let's use it for a single pixel so authoring software can't shift the palette to id zero.
@@ -167,36 +172,36 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
             fclose(fp);
             free(trans);
             free(palette);
+            free(bitmap);
             printf("Critical error in libpng while processing %s.\n", fname);
             return;
         }
 
         fp = fopen(fname, "wb");
-        if (fp == NULL) {
-            printf("Error opening %s for writing!\n", fname);
-            return;
+        if (fp != NULL) {
+            png_init_io(png_ptr, fp);
+            png_set_compression_level(png_ptr, 3);
+
+            png_set_IHDR(png_ptr, info_ptr, w, h, 8,
+                         PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
+                         PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+            //Write palette and alpha
+            png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count + rle_optimise);
+            png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count + rle_optimise, NULL);
+            png_write_info(png_ptr, info_ptr);
+
+            png_byte *row;
+            for (int k = 0; k < h; k++) {
+                row = (png_byte*)(bitmap + (k + h_margin)*rgba_img->width + w_margin);
+                png_write_row(png_ptr, row);
+            }
+            png_write_end(png_ptr, NULL);
+            png_destroy_write_struct(&png_ptr, &info_ptr);
+            fclose(fp);
+        } else {
+            printf("Failed to write %s.\n", fname);
         }
-
-        png_init_io(png_ptr, fp);
-        png_set_compression_level(png_ptr, 3);
-
-        png_set_IHDR(png_ptr, info_ptr, w, h, 8,
-                     PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
-                     PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-
-        //Write palette and alpha
-        png_set_PLTE(png_ptr, info_ptr, palette, liq_pal->count + rle_optimise);
-        png_set_tRNS(png_ptr, info_ptr, trans, liq_pal->count + rle_optimise, NULL);
-        png_write_info(png_ptr, info_ptr);
-
-        png_byte *row;
-        for (int k = 0; k < h; k++) {
-            row = (png_byte*)(bitmap + (k + h_margin)*rgba_img->width + w_margin);
-            png_write_row(png_ptr, row);
-        }
-        png_write_end(png_ptr, NULL);
-        png_destroy_write_struct(&png_ptr, &info_ptr);
-        fclose(fp);
     }
     free(bitmap);
     free(trans);
@@ -259,7 +264,7 @@ static void write_png(char *fname, image_t *img)
     fclose(fp);
 }
 
-static void init(opts_t *args)
+static void init(opts_t *args, liqopts_t *liqargs)
 {
     ass_library = ass_library_init();
     if (!ass_library) {
@@ -305,6 +310,11 @@ static void init(opts_t *args)
             exit(1);
         }
         liq_set_max_colors(attr, args->quantize);
+        liq_set_quality(attr, 0, liqargs->max_quality);
+        liq_set_speed(attr, liqargs->speed);
+        printf("libimagequant: Version %s\n", LIQ_VERSION_STRING);
+        printf("libimagequant: Settings: max-colors=%d, max-quality=%d, speed=%d, dithering=%.02f\n",
+                liq_get_max_colors(attr), liq_get_max_quality(attr), liq_get_speed(attr), liqargs->dither);
     }
 }
 
@@ -611,7 +621,7 @@ static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res)
     return 0;
 }
 
-eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
+eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t *liqargs)
 {
     long long tm = 0;
     int count = 0, fres = 0, img_cnt = 0;
@@ -623,7 +633,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
 
     eventlist_t *evlist = calloc(1, sizeof(eventlist_t));
 
-    init(args);
+    init(args, liqargs);
     ASS_Track *track = ass_read_file(ass_library, subfile, NULL);
 
     if (!track) {
@@ -649,7 +659,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                 }
                 if (args->split && find_split(frame, args)) {
                     if (args->quantize) {
-                        write_png_palette(count, frame, &img, &res, args, 1);
+                        write_png_palette(count, frame, &img, &res, args, 1, liqargs->dither);
                     } else {
                         for (img_cnt = 0; img_cnt < 2; img_cnt++) {
                             frame->subx1 = frame->crops[img_cnt].x1;
@@ -662,7 +672,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
                     }
                 } else {
                     if (args->quantize) {
-                        write_png_palette(count, frame, &img, &res, args, 0);
+                        write_png_palette(count, frame, &img, &res, args, 0, liqargs->dither);
                     } else {
                         snprintf(imgfile, 15, FILENAME_FMT FILENAME_EXT, count);
                         write_png(imgfile, frame);
