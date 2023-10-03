@@ -682,7 +682,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args)
             case 0:
             {
                 tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_MID), 1);
-                uint64_t offset = (tm*frate->rate)/1000;
+                uint64_t offset = (tm*frate->num)/(frate->denom*1000);
 
                 if (!tm && frame_cnt > 1)
                     goto finish;
