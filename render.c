@@ -12,11 +12,13 @@
 #define FILENAME_EXT ".png"
 
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
+#define DIV_ROUND_CLOSEST(n, d) (((n) + (d >> 1))/(d))
 
 typedef enum SamplingFlag_s {
-    SAMPLE_TC_IN  = 0,
-    SAMPLE_TC_OUT,
-    SAMPLE_TC_MID,
+    SAMPLE_TC_PTSIN,
+    SAMPLE_TC_PTSIN_INT,
+    SAMPLE_TC_PTSMID,
+    SAMPLE_TC_PTSMID_INT,
     INVALID_SAMPLING
 } SamplingFlag_t;
 
@@ -572,12 +574,14 @@ static int find_split(image_t *frame, opts_t *args)
 
 static uint64_t frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate, SamplingFlag_t flag)
 {
-    if (flag == SAMPLE_TC_OUT) {
-        return (uint64_t)floor((1000 * frame_cnt * frate->denom)/(double)frate->num);
-    } else if (flag == SAMPLE_TC_IN) {
-        return (uint64_t)ceil((1000*(frame_cnt - 1) * frate->denom)/(double)frate->num);
-    } else if (flag == SAMPLE_TC_MID) {
-        return (uint64_t)round(((1000*frame_cnt * frate->denom)/frate->num) - (500*frate->denom)/frate->num);
+    if (flag == SAMPLE_TC_PTSIN) {
+        return (uint64_t)round((1000*((uint64_t)frame_cnt - 1) * frate->denom)/(double)frate->num);
+    } else if (flag == SAMPLE_TC_PTSIN_INT) {
+        return (uint64_t)DIV_ROUND_CLOSEST(1000*((uint64_t)frame_cnt - 1) * frate->denom, (uint64_t)frate->num);
+    } else if (flag == SAMPLE_TC_PTSMID) {
+        return (uint64_t)round(((1000*(uint64_t)frame_cnt - 500) * frate->denom)/(double)frate->num);
+    } else if (flag == SAMPLE_TC_PTSMID_INT) {
+        return (uint64_t)DIV_ROUND_CLOSEST((1000*(uint64_t)frame_cnt - 500) * frate->denom, (uint64_t)frate->num);
     }
     fprintf(stderr, "Invalid sampling flag.\n");
     exit(1);
@@ -588,7 +592,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
 {
     int changed;
 
-    uint64_t ms = frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_MID);
+    uint64_t ms = frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_PTSIN);
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
@@ -691,7 +695,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
                 break;
             case 0:
             {
-                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_MID), 1);
+                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_PTSIN), 1);
                 uint64_t offset = (tm*frate->num)/(frate->denom*1000);
 
                 if (!tm && frame_cnt > 1)
