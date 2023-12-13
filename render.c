@@ -145,13 +145,14 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
     liq_set_dithering_level(*res, dither_val);
     liq_write_remapped_image(*res, *img, (void*)bitmap, rgba_img->width*h);
 
-    //Palette entry zero is annoying in PGS, let's use it for a single pixel so authoring software can't shift the palette to id zero.
+    //One pixel of palette entry zero needs at least two bytes to be encoded with PGS.
+    //This is an issue whenever the color index changes frequently due to max line coding limit.
+    //To avoid RLE line length overshoot, this palette entry may not be used.
     if (rle_optimise) {
         for (k = 0; k < rgba_img->width*h; k++)
             bitmap[k] += 1;
         memcpy(&palette[0], &palette[bitmap[0]], sizeof(png_color));
         trans[0] = trans[bitmap[0]];
-        bitmap[0] = 0;
     }
 
     for (uint8_t split_cnt = 0; split_cnt < MIN(2, 1 + is_split); split_cnt++) {
@@ -314,6 +315,11 @@ static void init(opts_t *args, liqopts_t *liqargs)
         liq_set_max_colors(attr, args->quantize);
         liq_set_quality(attr, 0, liqargs->max_quality);
         liq_set_speed(attr, liqargs->speed);
+
+        //Palette entry 0xFF must always be transparent.
+        if (args->quantize + args->rle_optimise >= 256)
+            liq_set_last_index_transparent(attr, 1);
+
         printf("libimagequant: Version %s\n", LIQ_VERSION_STRING);
         printf("libimagequant: Settings: max-colors=%d, max-quality=%d, speed=%d, dithering=%.02f\n",
                 liq_get_max_colors(attr), liq_get_max_quality(attr), liq_get_speed(attr), liqargs->dither);
@@ -635,17 +641,33 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     }
 }
 
-static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res)
+static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res, opts_t *args)
 {
     *img = liq_image_create_rgba(attr, &frame->buffer[frame->stride*frame->suby1], frame->width, frame->suby2-frame->suby1+1, 0);
-    if (*img == NULL) {
+    if (NULL == *img)
         return -1;
-    }
 
-    if(liq_image_quantize(*img, attr, qtz_res) != LIQ_OK) {
+    if(liq_image_quantize(*img, attr, qtz_res) != LIQ_OK)
         return -1;
+
+    int ret = 0;
+    if (args->quantize + args->rle_optimise >= 256) {
+        const liq_palette *pal = liq_get_palette(*qtz_res);
+        //Using the entire palette and the last palette entry is not transparent?
+        if (pal->count == args->quantize && pal->entries[pal->count - 1].a > 0) {
+            const uint16_t max_colors = liq_get_max_colors(attr);
+
+            //destroy invalid result and quantize with colors-1
+            liq_result_destroy(*qtz_res);
+            liq_set_max_colors(attr, max_colors - 1);
+
+            if(liq_image_quantize(*img, attr, qtz_res) != LIQ_OK)
+                ret = -1;
+            //reset color count to user config
+            liq_set_max_colors(attr, max_colors);
+        }
     }
-    return 0;
+    return ret;
 }
 
 eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t *liqargs)
@@ -682,7 +704,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
         switch (fres) {
             case 3:
             {
-                if (args->quantize && quantize_event(frame, &img, &res)) {
+                if (args->quantize && quantize_event(frame, &img, &res, args)) {
                     printf("Quantization failed for " FILENAME_FMT FILENAME_EXT ".\n", count);
                     exit(1);
                 }
