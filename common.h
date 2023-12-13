@@ -45,7 +45,7 @@ typedef struct opts_s {
     uint8_t hinting      : 1;
     uint8_t split        : 1;
     uint8_t rle_optimise : 1;
-    uint8_t find_dupes   : 1;
+    uint8_t keep_dupes   : 1;
     uint8_t _pad         : 3;
     const char *fontdir;
 } opts_t;

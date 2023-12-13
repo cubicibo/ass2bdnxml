@@ -53,9 +53,12 @@ vfmt_t vfmts[] = {
     {NULL, 0, 0}
 };
 
-#define OPT_LIQ_SPEED   1000
-#define OPT_LIQ_DITHER  1001
-#define OPT_LIQ_MAXQUAL 1002
+#define OPT_ARG_HINTING   998
+#define OPT_ARG_KEEPDUPES 999
+
+#define OPT_LIQ_SPEED     1000
+#define OPT_LIQ_DITHER    1001
+#define OPT_LIQ_MAXQUAL   1002
 
 static void die_usage(const char *name)
 {
@@ -229,26 +232,26 @@ int main(int argc, char *argv[])
     }
 
     static struct option longopts[] = {
-        {"dvd-mode",     no_argument,       0, 'd'},
-        {"hinting",      no_argument,       0, 'g'},
-        {"negative",     no_argument,       0, 'z'},
-        {"rleopt",       no_argument,       0, 'r'},
+        {"fontdir",      required_argument, 0, 'a'},
         {"copyname",     no_argument,       0, 'c'},
-        {"no-dupes",     no_argument,       0, 'n'},
-        {"split",        required_argument, 0, 's'},
-        {"splitmargin",  required_argument, 0, 'm'},
-        {"trackname",    required_argument, 0, 't'},
-        {"language",     required_argument, 0, 'l'},
-        {"video-format", required_argument, 0, 'v'},
+        {"dvd-mode",     no_argument,       0, 'd'},
         {"fps",          required_argument, 0, 'f'},
-        {"width-render", required_argument, 0, 'w'},
         {"height-render",required_argument, 0, 'h'},
+        {"language",     required_argument, 0, 'l'},
+        {"splitmargin",  required_argument, 0, 'm'},
+        {"offset",       required_argument, 0, 'o'},
+        {"par",          required_argument, 0, 'p'},
+        {"quantize",     required_argument, 0, 'q'},
+        {"rleopt",       no_argument,       0, 'r'},
+        {"split",        required_argument, 0, 's'},
+        {"trackname",    required_argument, 0, 't'},
+        {"video-format", required_argument, 0, 'v'},
+        {"width-render", required_argument, 0, 'w'},
         {"width-store",  required_argument, 0, 'x'},
         {"height-store", required_argument, 0, 'y'},
-        {"par",          required_argument, 0, 'p'},
-        {"fontdir",      required_argument, 0, 'a'},
-        {"offset",       required_argument, 0, 'o'},
-        {"quantize",     required_argument, 0, 'q'},
+        {"negative",     no_argument,       0, 'z'},
+        {"hinting",      no_argument,       0, OPT_ARG_HINTING},
+        {"keep-dupes",   no_argument,       0, OPT_ARG_KEEPDUPES},
         {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
         {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
         {"liq-speed",    required_argument, 0, OPT_LIQ_SPEED},
@@ -257,7 +260,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "czdgjrt:l:v:f:w:h:x:y:p:a:o:q:s:m:k:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "cdgrza:f:h:l:m:o:p:q:s:t:v:w:x:y:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -278,7 +281,7 @@ int main(int argc, char *argv[])
             case 'r':
                 args.rle_optimise = 1;
                 break;
-            case 'g':
+            case OPT_ARG_HINTING:
                 args.hinting = 1;
                 break;
             case 't':
@@ -344,14 +347,16 @@ int main(int argc, char *argv[])
                 break;
             case 'q':
                 args.quantize = (uint16_t)strtol(optarg, NULL, 10);
-                if (args.quantize > 255) {
-                    printf("Colours must be within [0; 255] incl. (default: 0, no quantization, output are 32-bit RGBA PNGs).\n");
+                if (args.quantize > 256) {
+                    printf("Colours must be within [0; 256] incl. (default: 0, no quantization, output 32-bit RGBA PNGs).\n");
                     exit(1);
+                } else if (1 == args.quantize) {
+                    //Cannot quantize with just a single color.
+                    ++args.quantize;
                 }
-                args.quantize += (args.quantize == 1);
                 break;
-            case 'n':
-                args.find_dupes = 1;
+            case OPT_ARG_KEEPDUPES:
+                args.keep_dupes = 1;
                 break;
             case OPT_LIQ_SPEED:
                 liqargs.speed = (uint8_t)strtol(optarg, NULL, 10);
@@ -383,9 +388,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (argc - optind == 1)
+    if (argc - optind == 1) {
         subfile = argv[optind];
-    else {
+    } else {
         printf("Only a single input file allowed.\n");
         exit(1);
     }
@@ -393,8 +398,7 @@ int main(int argc, char *argv[])
         int len = strlen(subfile);
         int ext_pos = -1;
 
-        for (i = len-1; i >= -1; --i)
-        {
+        for (i = len-1; i >= -1; --i) {
             if (i == -1 || subfile[i] == '\\'|| subfile[i] == '/') {
                 bdnfile = (char*)malloc(len - i + 1);
                 memcpy(bdnfile, &subfile[i+1], len - i);
@@ -415,11 +419,9 @@ int main(int argc, char *argv[])
 
     i = 0;
 
-    while (frates[i].name != NULL)
-    {
+    while (frates[i].name != NULL) {
         if (!strcasecmp(frates[i].name, frame_rate))
             frate = &frates[i];
-
         i++;
     }
 
@@ -430,11 +432,9 @@ int main(int argc, char *argv[])
 
     i = 0;
 
-    while (vfmts[i].name != NULL)
-    {
+    while (vfmts[i].name != NULL) {
         if (!strcasecmp(vfmts[i].name, video_format))
             vfmt = &vfmts[i];
-
         i++;
     }
 
@@ -473,9 +473,11 @@ int main(int argc, char *argv[])
         args.offset *= -1;
 
     if (args.quantize) {
-        //RLE optimise discard palette entry zero, we have 254 usable colors.
-        if (args.rle_optimise && args.quantize == 255)
+        //RLE optimise discard palette entry zero, we have one less usable entry, ensure we don't overshoot the 8-bit id
+        if (args.rle_optimise && args.quantize >= 256) {
             args.quantize -= 1;
+            printf("ass2bdnxml: RLE optimisation enabled, only using %d colors.\n", args.quantize);
+        }
         liqargs.max_quality = MAX(0, MIN(100, liqargs.max_quality));
     } else if (liq_params) {
         printf("Set up libimagequant parameters but not using --quantize.\n");

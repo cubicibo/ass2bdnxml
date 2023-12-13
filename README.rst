@@ -77,18 +77,11 @@ The following optional arguments are available:
 | ``-c``             | Flag to name the output XML according to the input ASS |
 | ``--copyname``     | file. The input ASS file must have a valid extension.  |
 +--------------------+--------------------------------------------------------+
-| ``-n``             | Merge together events that are reported as different   |
-| ``--no-dupes``     | by libass yet identical when composited (e.g ASSDraw). |
-+--------------------+--------------------------------------------------------+
 | ``-t``             | Sets the human-readable name of the subtitle track.    |
 | ``--trackname``    | Default: ``Undefined``                                 |
 +--------------------+--------------------------------------------------------+
 | ``-l``             | Sets the language of the subtitle track.               |
 | ``--language``     | Default: ``und``                                       |
-+--------------------+--------------------------------------------------------+
-| ``-d``             | Flag to apply a contrast change that may improve       |
-| ``--dvd-mode``     | subtitle appearance with the limited resolution and    |
-|                    | color palette of DVD subtitles.                        |
 +--------------------+--------------------------------------------------------+
 | ``-w``             | Sets the width to use as ASS frame & storage space     |
 | ``--render-width`` | Defaults to output width if not specified. Some ass    |
@@ -97,9 +90,6 @@ The following optional arguments are available:
 | ``-h``             | Sets the height to use as ASS frame & storage space    |
 | ``--render-height``| Defaults to output height if not specified. Some ass   |
 |                    | tags may not render properly if the value is improper. |
-+--------------------+--------------------------------------------------------+
-| ``-g``             | Flag to enable libass soft hinting.                    |
-| ``--hinting``      |                                                        |
 +--------------------+--------------------------------------------------------+
 | ``-x``             | Sets the ASS storage width. I.e the pre-anamorphic     |
 | ``--width-store``  | width. ``-p`` should be preferred, Last resort option. |
@@ -123,4 +113,19 @@ Below are parameters to tune libimagequant (LIQ). Those shall only be used along
 | ``--liq-dither``   | Dithering level, value must be within [0; 1.0] incl.   |
 |                    | Default: ``1.0``. Disable: ``0``. LIQ dithering is soft|
 |                    | so default or ``0.5`` is perfect in general.           |
++--------------------+--------------------------------------------------------+
+
+Moreover, the last table has debugging parameters. These should not have any practical in most scenarios.
+
++--------------------+--------------------------------------------------------+
+| Option             | Effect                                                 |
++====================+========================================================+
+| ``-d``             | Flag to apply a contrast change that may improve       |
+| ``--dvd-mode``     | subtitle appearance with the limited resolution and    |
+|                    | color palette of DVD subtitles.                        |
++--------------------+--------------------------------------------------------+
+| ``--keep-dupes``   | Flag to not merge events that are reported as different|
+|                    | by libass yet identical when composited (e.g ASSDraw). |
++--------------------+--------------------------------------------------------+
+| ``--hinting``      | Flag to enable soft hinting in libass.                 |
 +--------------------+--------------------------------------------------------+
