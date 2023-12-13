@@ -614,7 +614,6 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
-        frame->out = frame_cnt + 1;
         blend(frame, img);
         //frame differ from the previous?
         if (NULL == prev_frame) {
@@ -628,6 +627,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
             ++frame->out;
             return 1;
         }
+        frame->out = frame_cnt + 1;
 
         if (frame->subx1 == -1 || frame->suby1 == -1)
             return 2;
@@ -692,7 +692,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
 
     image_t *frame = image_init(args->frame_w, args->frame_h, args->dvd_mode);
     image_t *prev_frame;
-    prev_frame = args->find_dupes ? image_init(args->frame_w, args->frame_h, args->dvd_mode) : NULL;
+    prev_frame = args->keep_dupes ? NULL : image_init(args->frame_w, args->frame_h, args->dvd_mode);
 
     while (1) {
         if (fres && fres != 2 && count) {

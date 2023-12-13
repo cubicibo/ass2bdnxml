@@ -53,9 +53,12 @@ vfmt_t vfmts[] = {
     {NULL, 0, 0}
 };
 
-#define OPT_LIQ_SPEED   1000
-#define OPT_LIQ_DITHER  1001
-#define OPT_LIQ_MAXQUAL 1002
+#define OPT_ARG_HINTING   998
+#define OPT_ARG_KEEPDUPES 999
+
+#define OPT_LIQ_SPEED     1000
+#define OPT_LIQ_DITHER    1001
+#define OPT_LIQ_MAXQUAL   1002
 
 static void die_usage(const char *name)
 {
@@ -233,11 +236,9 @@ int main(int argc, char *argv[])
         {"copyname",     no_argument,       0, 'c'},
         {"dvd-mode",     no_argument,       0, 'd'},
         {"fps",          required_argument, 0, 'f'},
-        {"hinting",      no_argument,       0, 'g'},
         {"height-render",required_argument, 0, 'h'},
         {"language",     required_argument, 0, 'l'},
         {"splitmargin",  required_argument, 0, 'm'},
-        {"no-dupes",     no_argument,       0, 'n'},
         {"offset",       required_argument, 0, 'o'},
         {"par",          required_argument, 0, 'p'},
         {"quantize",     required_argument, 0, 'q'},
@@ -249,6 +250,8 @@ int main(int argc, char *argv[])
         {"width-store",  required_argument, 0, 'x'},
         {"height-store", required_argument, 0, 'y'},
         {"negative",     no_argument,       0, 'z'},
+        {"hinting",      no_argument,       0, OPT_ARG_HINTING},
+        {"keep-dupes",   no_argument,       0, OPT_ARG_KEEPDUPES},
         {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
         {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
         {"liq-speed",    required_argument, 0, OPT_LIQ_SPEED},
@@ -257,7 +260,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "czdgjrt:l:v:f:w:h:x:y:p:a:o:q:s:m:k:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "cdgrza:f:h:l:m:o:p:q:s:t:v:w:x:y:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -278,7 +281,7 @@ int main(int argc, char *argv[])
             case 'r':
                 args.rle_optimise = 1;
                 break;
-            case 'g':
+            case OPT_ARG_HINTING:
                 args.hinting = 1;
                 break;
             case 't':
@@ -352,8 +355,8 @@ int main(int argc, char *argv[])
                     ++args.quantize;
                 }
                 break;
-            case 'n':
-                args.find_dupes = 1;
+            case OPT_ARG_KEEPDUPES:
+                args.keep_dupes = 1;
                 break;
             case OPT_LIQ_SPEED:
                 liqargs.speed = (uint8_t)strtol(optarg, NULL, 10);
