@@ -53,6 +53,9 @@ vfmt_t vfmts[] = {
     {NULL, 0, 0}
 };
 
+
+#define OPT_ARGS_DIFF   999
+
 #define OPT_LIQ_SPEED   1000
 #define OPT_LIQ_DITHER  1001
 #define OPT_LIQ_MAXQUAL 1002
@@ -248,6 +251,7 @@ int main(int argc, char *argv[])
         {"fontdir",      required_argument, 0, 'a'},
         {"offset",       required_argument, 0, 'o'},
         {"quantize",     required_argument, 0, 'q'},
+        {"no-dupes",     no_argument,       0, OPT_ARGS_DIFF},
         {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
         {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
         {"liq-speed",    required_argument, 0, OPT_LIQ_SPEED},
@@ -348,6 +352,9 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 args.quantize += (args.quantize == 1);
+                break;
+            case OPT_ARGS_DIFF:
+                args.find_dupes = 1;
                 break;
             case OPT_LIQ_SPEED:
                 liqargs.speed = (uint8_t)strtol(optarg, NULL, 10);

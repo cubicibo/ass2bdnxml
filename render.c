@@ -587,7 +587,19 @@ static uint64_t frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate, Samplin
     exit(1);
 }
 
-static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
+static uint8_t diff_frames(image_t *current, image_t *prev)
+{
+    //compare header
+    if (0 != memcmp(current, prev, offsetof(image_t, in)))
+        return 1;
+
+    //header match, compare active vertical bitmap area
+    return (0 != memcmp(&current->buffer[current->stride*current->suby1],
+                        &prev->buffer[current->stride*current->suby1],
+                        current->stride*(current->suby2 - current->suby1 + 1)));
+}
+
+static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_frame,
                      image_t *frame, uint64_t frame_cnt, frate_t *frate)
 {
     int changed;
@@ -598,7 +610,18 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track,
     if (changed && img) {
         frame->out = frame_cnt + 1;
         blend(frame, img);
-        frame->in = frame_cnt;
+        //frame differ from the previous?
+        if (NULL == prev_frame) {
+            frame->in = frame_cnt;
+        } else if (diff_frames(frame, prev_frame)) {
+            frame->in = frame_cnt;
+            memcpy(prev_frame, frame, offsetof(image_t, in));
+            memcpy(prev_frame->buffer, frame->buffer, frame->stride*frame->height);
+        } else {
+            // img exists and is identical to prev.
+            ++frame->out;
+            return 1;
+        }
 
         if (frame->subx1 == -1 || frame->suby1 == -1)
             return 2;
@@ -646,13 +669,15 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
     }
 
     image_t *frame = image_init(args->frame_w, args->frame_h, args->dvd_mode);
+    image_t *prev_frame;
+    prev_frame = args->find_dupes ? image_init(args->frame_w, args->frame_h, args->dvd_mode) : NULL;
 
     while (1) {
         if (fres && fres != 2 && count) {
             eventlist_set(evlist, frame, count - 1);
         }
 
-        fres = get_frame(ass_renderer, track, frame, frame_cnt, frate);
+        fres = get_frame(ass_renderer, track, prev_frame, frame, frame_cnt, frate);
 
         switch (fres) {
             case 3:
@@ -714,6 +739,10 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
 finish:
     free(frame->buffer);
     free(frame);
+    if (prev_frame) {
+        free(prev_frame->buffer);
+        free(prev_frame);
+    }
     if (args->quantize && attr)
         liq_attr_destroy(attr);
     ass_free_track(track);
