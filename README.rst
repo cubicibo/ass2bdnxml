@@ -42,9 +42,9 @@ The following optional arguments are available:
 |                    | Default: ``23.976``                                    |
 +--------------------+--------------------------------------------------------+
 | ``-q``             | Sets and enable image quantization with N colors.      |
-| ``--quantize``     | Choices: value in [0; 255].                            |
+| ``--quantize``     | Choices: value in [0; 256].                            |
 |                    | Default: ``0`` (Disabled, PNGs are 32-bit RGBA)        |
-|                    | **Notes: Do not use if target is SUPer.**              |
+|                    | **Notes: DO NOT USE if target is SUPer.**              |
 |                    | This must be enabled if target software is Scenarist BD|
 +--------------------+--------------------------------------------------------+
 | ``-a``             | Sets an additional font directory for custom fonts not |
@@ -53,7 +53,7 @@ The following optional arguments are available:
 | ``-s``             | Sets the event split across 2 graphics behaviour.      |
 | ``--split``        | 0: Disabled, 1: Normal, 2: Strong, 3: Very aggressive. |
 |                    | Default: ``0`` (Disabled)                              |
-|                    | **Note: Do not use if target is SUPer.**               |
+|                    | **Note: DO NOT USE if target is SUPer.**               |
 +--------------------+--------------------------------------------------------+
 | ``-m``             | Sets the vertical and opt. horizontal margins to split |
 | ``--splitmargin``  | Format: ``VxH`` (V=y difference, H=x difference).      |
@@ -71,11 +71,14 @@ The following optional arguments are available:
 | ``--negative``     | Ignored if no offset is provided.                      |
 +--------------------+--------------------------------------------------------+
 | ``-r``             | Flag to encode PNGs without using palette entry zero   |
-| ``--rleopt``       | Can maybe prevent RLE/line width errors in authorign.  |
+| ``--rleopt``       | Can prevent RLE/line width encoding errors at authoring|
 |                    | Ignored if 32-bit RGBA output (``--quantize`` unused). |
 +--------------------+--------------------------------------------------------+
 | ``-c``             | Flag to name the output XML according to the input ASS |
 | ``--copyname``     | file. The input ASS file must have a valid extension.  |
++--------------------+--------------------------------------------------------+
+| ``-n``             | Merge together events that are reported as different   |
+| ``--no-dupes``     | by libass yet identical when composited (e.g ASSDraw). |
 +--------------------+--------------------------------------------------------+
 | ``-t``             | Sets the human-readable name of the subtitle track.    |
 | ``--trackname``    | Default: ``Undefined``                                 |
