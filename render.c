@@ -596,7 +596,7 @@ static uint64_t frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate, Samplin
 static uint8_t diff_frames(image_t *current, image_t *prev)
 {
     //compare header
-    if (0 != memcmp(current, prev, offsetof(image_t, in)))
+    if (0 != memcmp(current, prev, offsetof(image_t, out)))
         return 1;
 
     //header match, compare active vertical bitmap area
@@ -620,7 +620,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
             frame->in = frame_cnt;
         } else if (diff_frames(frame, prev_frame)) {
             frame->in = frame_cnt;
-            memcpy(prev_frame, frame, offsetof(image_t, in));
+            memcpy(prev_frame, frame, offsetof(image_t, out));
             memcpy(prev_frame->buffer, frame->buffer, frame->stride*frame->height);
         } else {
             // img exists and is identical to prev.
@@ -629,14 +629,20 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
         }
         frame->out = frame_cnt + 1;
 
-        if (frame->subx1 == -1 || frame->suby1 == -1)
+        //Sometime sampling time is on an active event but the blended image is transparent
+        // because the composition coefficients are weak -> discard
+        if (frame->subx1 == -1 || frame->suby1 == -1) {
             return 2;
+        }
 
         return 3;
     } else if (!changed && img) {
         ++frame->out;
         return 1;
     } else {
+        //No event, set prev_frame as invalid
+        if (prev_frame)
+            prev_frame->in = (uint64_t)(-1);
         return 0;
     }
 }
