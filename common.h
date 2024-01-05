@@ -2,6 +2,7 @@
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
+#define A2B_LOG_PREFIX "ass2bdnxml: "
 
 typedef struct BoundingBox_s {
     int x1;
@@ -46,7 +47,9 @@ typedef struct opts_s {
     uint8_t split        : 1;
     uint8_t rle_optimise : 1;
     uint8_t keep_dupes   : 1;
-    uint8_t _pad         : 3;
+    uint8_t anamorphic   : 1;
+    uint8_t fullscreen   : 1;
+    uint8_t _bpad        : 1;
     const char *fontdir;
 } opts_t;
 

@@ -289,12 +289,7 @@ static void init(opts_t *args, liqopts_t *liqargs)
         exit(1);
     }
     ass_set_frame_size(ass_renderer, args->render_w, args->render_h);
-    if (args->par > 0) {
-        ass_set_pixel_aspect(ass_renderer, args->par);
-    }
-    if (args->storage_w && args->storage_h) {
-        ass_set_storage_size(ass_renderer, args->storage_w, args->storage_h);
-    }
+    ass_set_storage_size(ass_renderer, args->storage_w, args->storage_h);
 
     ass_set_fonts(ass_renderer, NULL, "sans-serif",
                   ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
@@ -696,9 +691,13 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
         exit(1);
     }
 
-    image_t *frame = image_init(args->frame_w, args->frame_h, args->dvd_mode);
+    printf(A2B_LOG_PREFIX "BDN format: (%dx%d), rendering at (%dx%d) for (%dx%d) display.\n", args->frame_w, args->frame_h,
+                                                                                      args->render_w, args->render_h,
+                                                                                      args->storage_w, args->storage_h);
+
+    image_t *frame = image_init(args->render_w, args->render_h, args->dvd_mode);
     image_t *prev_frame;
-    prev_frame = args->keep_dupes ? NULL : image_init(args->frame_w, args->frame_h, args->dvd_mode);
+    prev_frame = args->keep_dupes ? NULL : image_init(args->render_w, args->render_h, args->dvd_mode);
 
     while (1) {
         if (fres && fres != 2 && count) {
