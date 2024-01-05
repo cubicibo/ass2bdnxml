@@ -41,20 +41,22 @@ typedef struct vfmt_s {
     char *name;
     int w_frame_anamorphic;
     int w_frame_fullscreen;
+    int w_scaled;
     int w;
     int h;
 } vfmt_t;
 
 vfmt_t vfmts[] = {
-    {"1080p", 1920, 1440, 1920, 1080},
-    {"1080i", 1920, 1440, 1920, 1080},
-    {"720p",  1280, 960,  1280, 720},
-    {"576i",  1024, 720,  720,  576},
-    {"480p",  848,  720,  720,  480},
-    {"480i",  848,  720,  720,  480},
-    {NULL, 0, 0}
+    {"1080p", 1920, 1440, -1, 1920, 1080},
+    {"1080i", 1920, 1440, -1, 1920, 1080},
+    {"720p",  1280, 960,  -1, 1280, 720},
+    {"576i",  1024, 720, 768, 720,  576},
+    {"480p",  852,  720, 640, 720,  480},
+    {"480i",  852,  720, 640, 720,  480},
+    {NULL, 0, 0, 0, 0, 0}
 };
 
+#define OPT_ARG_NEGATIVE       994
 #define OPT_ARG_DVD_MODE       995
 #define OPT_ARG_FRAME_HEIGHT   996
 #define OPT_ARG_STORAGE_HEIGHT 997
@@ -244,13 +246,14 @@ int main(int argc, char *argv[])
         {"language",     required_argument, 0, 'l'},
         {"splitmargin",  required_argument, 0, 'm'},
         {"offset",       required_argument, 0, 'o'},
+        {"par",          required_argument, 0, 'p'},
         {"quantize",     required_argument, 0, 'q'},
         {"rleopt",       no_argument,       0, 'r'},
         {"split",        required_argument, 0, 's'},
         {"trackname",    required_argument, 0, 't'},
         {"fullscreen",   no_argument,       0, 'u'},
         {"video-format", required_argument, 0, 'v'},
-        {"negative",     no_argument,       0, 'z'},
+        {"squarepx",     no_argument,       0, 'z'},
         {"width-render", required_argument, 0, 'w'},
         {"width-store",  required_argument, 0, 'x'},
         {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
@@ -266,7 +269,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "chruza:f:l:m:o:q:s:t:v:w:x:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "chruza:f:l:m:o:p:q:s:t:v:w:x:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -289,7 +292,11 @@ int main(int argc, char *argv[])
                 break;
             case 'u':
                 args.fullscreen = 1;
+                break;
             case 'z':
+                args.square_px = 1;
+                break;
+            case OPT_ARG_NEGATIVE:
                 negative_offset = 1;
                 break;
             case OPT_ARG_HINTING:
@@ -307,25 +314,31 @@ int main(int argc, char *argv[])
             case 'f':
                 frame_rate = optarg;
                 break;
-            case 's':
-                args.split = (uint8_t)strtol(optarg, NULL, 10);
-                if (args.split > 3) {
-                    printf("Invalid split mode.\n");
-                    exit(1);
-                }
-                break;
             case 'm':
                 parse_margins(optarg, args.splitmargin);
                 break;
             case 'o':
                 tc_to_tcarray(optarg, offset_vals);
                 break;
-            case 'w':
-                args.render_w = (int)strtol(optarg, NULL, 10);
-                if (args.render_w <= 0 || args.render_w > 4096) {
-                    printf("Invalid render width.\n");
+            case 'p':
+                subfile = NULL;
+                args.par = strtod(optarg, &subfile);
+                if (args.par > 0 && subfile != NULL && (subfile[0] == ':' || subfile[0] == '/'))
+                {
+                    char *den_stop_char = subfile;
+                    double den = strtod(&subfile[1], &den_stop_char);
+                    if (den > 0 && subfile != den_stop_char) {
+                        args.par /= den;
+                    } else {
+                        printf("Invalid PAR format num=%d den=%d.\n", (int)args.par, (int)den);
+                        exit(1);
+                    }
+                }
+                if (args.par < 0.1 || args.par > 10) {
+                    printf("Pixel Aspect Ratio must be within [0.1; 10] incl. (as fractional: [1:10; 10:1]).\n");
                     exit(1);
                 }
+                subfile = NULL;
                 break;
             case 'q':
                 args.quantize = (uint16_t)strtol(optarg, NULL, 10);
@@ -335,6 +348,20 @@ int main(int argc, char *argv[])
                 } else if (1 == args.quantize) {
                     //Cannot quantize with just a single color.
                     ++args.quantize;
+                }
+                break;
+            case 's':
+                args.split = (uint8_t)strtol(optarg, NULL, 10);
+                if (args.split > 3) {
+                    printf("Invalid split mode.\n");
+                    exit(1);
+                }
+                break;
+            case 'w':
+                args.render_w = (int)strtol(optarg, NULL, 10);
+                if (args.render_w <= 0 || args.render_w > 4096) {
+                    printf("Invalid render width.\n");
+                    exit(1);
                 }
                 break;
             case 'x':
@@ -449,15 +476,25 @@ int main(int argc, char *argv[])
     args.frame_h = vfmt->h;
     args.frame_w = vfmt->w;
 
-    if (args.anamorphic) {
-        if (args.storage_w != 0) {
-            printf(A2B_LOG_PREFIX "Ignored anamorphic flag, storage width is already set: %d.\n", args.storage_w);
-        } else if (vfmt->h <= 576) {
+    uint8_t storage_set = args.storage_w != 0 || args.storage_h != 0;
+    if (args.anamorphic && (args.par > 0 || storage_set || args.square_px)) {
+        printf("Conflicting parameters: anamorphic flag set along PAR and/or storage dimension.\n");
+        exit(1);
+    } else if ((args.par > 0 && (storage_set || args.square_px)) || (storage_set && args.square_px)) {
+        printf("Conflicting parameters: storage dimension and pixel aspect ratio both configured.\n");
+        exit(1);
+    }
+
+    if (vfmt->h <= 576) {
+        if (args.anamorphic) {
             args.storage_w = vfmt->w_frame_anamorphic;
-        } else {
-            printf(A2B_LOG_PREFIX "Anamorphic flag on non-SD output, aborting.\nUse \"--width-store DISPLAY_W --width-render SQUEEZED_W\" if absolutely needed.\n");
-            exit(1);
         }
+        if (args.square_px) {
+            args.par = vfmt->w_scaled / (double)vfmt->w;
+        }
+    } else if (args.anamorphic || args.square_px) {
+        printf("Pixel stretch flag set on non-SD output, aborting.\nUse \"--width-store DISPLAY_W --width-render SQUEEZED_W\" if absolutely needed.\n");
+        exit(1);
     }
 
     // render_size is ASS frame_size
@@ -487,6 +524,10 @@ int main(int argc, char *argv[])
     args.offset = tcarray_to_frame(offset_vals, frate);
     if (negative_offset)
         args.offset *= -1;
+
+    //The bdn encodes the squeeze
+    if (args.par > 0)
+        args.par = 1.0/args.par;
 
     if (args.quantize) {
         //RLE optimise discard palette entry zero, we have one less usable entry, ensure we don't overshoot the 8-bit id

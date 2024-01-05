@@ -49,7 +49,7 @@ typedef struct opts_s {
     uint8_t keep_dupes   : 1;
     uint8_t anamorphic   : 1;
     uint8_t fullscreen   : 1;
-    uint8_t _bpad        : 1;
+    uint8_t square_px    : 1;
     const char *fontdir;
 } opts_t;
 

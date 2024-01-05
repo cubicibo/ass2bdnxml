@@ -42,8 +42,7 @@ The following optional arguments are available:
 |                    | Default: ``23.976``                                    |
 +--------------------+--------------------------------------------------------+
 | ``-q``             | Sets and enable image quantization with N colors.      |
-| ``--quantize``     | Choices: value in [0; 256].                            |
-|                    | Default: ``0`` (Disabled, PNGs are 32-bit RGBA)        |
+| ``--quantize``     | Value in [0; 256] inc. Default: ``0`` (32bit RGBA PNGs)|
 |                    | **Notes: DO NOT USE if target is SUPer.**              |
 |                    | This must be enabled if target software is Scenarist BD|
 +--------------------+--------------------------------------------------------+
@@ -60,19 +59,22 @@ The following optional arguments are available:
 |                    | Default: 0x0. Split search is done on 8x8 grid anyway. |
 |                    | Note: If only V is given, 'x' separator must be omitted|
 +--------------------+--------------------------------------------------------+
-| ``-h``             | Squeeze bitmaps to the storage aspect ratio. Necessary |
+| ``-h``             | Flag to squeeze bitmaps to correct aspect ratio. Needed|
 | ``--anamorphic``   | for SD anamorphic content else subs will be stretched. |
++--------------------+--------------------------------------------------------+
+| ``-z``             | Flag to correct the square pixel horizontal stretch    |
+| ``--squarepx``     | with SD 4:3 content. Use ``--anamorphic`` for 16:9 SD. |
 +--------------------+--------------------------------------------------------+
 | ``-u``             | Do 4:3 rendering for 16:9 container (e.g 1440x1080     |
 | ``--fullscreen``   | pillarboxed to 1920x1080). Recommended for ASS made    |
 |                    | with the 4/3 geometry clip rather than pillarboxed one.|
 +--------------------+--------------------------------------------------------+
+| ``-p``             | Set custom pixel aspect ratio in rendering.            |
+| ``--par``          | Format: floating point or fraction like ``852:720``.   |
++--------------------+--------------------------------------------------------+
 | ``-o``             | Sets the TC offset to shift all of the BDN Timecodes.  |
 | ``--offset``       | Default: ``00:00:00:00`` (offset of zero frame)        |
 |                    | Note: TC string must be the standard SMPTE NDF format. |
-+--------------------+--------------------------------------------------------+
-| ``-z``             | Flag to indicate a negative ``--offset``.              |
-| ``--negative``     | Ignored if no offset is provided.                      |
 +--------------------+--------------------------------------------------------+
 | ``-r``             | Flag to encode PNGs without using palette entry zero   |
 | ``--rleopt``       | Can prevent RLE/line width encoding errors at authoring|
@@ -135,6 +137,9 @@ Moreover, the last table has debugging parameters. These should not have any pra
 +--------------------+--------------------------------------------------------+
 | ``--keep-dupes``   | Flag to not merge events that are reported as different|
 |                    | by libass yet identical when composited (e.g ASSDraw). |
++--------------------+--------------------------------------------------------+
+| ``--negative``     | Flag to indicate a negative ``--offset``.              |
+|                    | Ignored if no ``--offset`` provided.                   |
 +--------------------+--------------------------------------------------------+
 | ``--hinting``      | Flag to enable soft hinting in libass.                 |
 +--------------------+--------------------------------------------------------+
