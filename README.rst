@@ -34,11 +34,11 @@ The following optional arguments are available:
 | Option             | Effect                                                 |
 +====================+========================================================+
 | ``-v``             | Sets the video format to render subtitles in.          |
-| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576i, 480p, 480i.         |
+| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576p, 576i, 480p, 480i.   |
 |                    | Default: ``1080p``                                     |
 +--------------------+--------------------------------------------------------+
 | ``-f``             | Sets the video frame rate.                             |
-| ``--fps``          | Choices: 23.976, 24, 25, 29.97, 50, 59.94.             |
+| ``--fps``          | Values: 23.976, 24, 25, 29.97, 50, 59.94, 60 (UHD only)|
 |                    | Default: ``23.976``                                    |
 +--------------------+--------------------------------------------------------+
 | ``-q``             | Sets and enable image quantization with N colors.      |
@@ -143,3 +143,11 @@ Moreover, the last table has debugging parameters. These should not have any pra
 +--------------------+--------------------------------------------------------+
 | ``--hinting``      | Flag to enable soft hinting in libass.                 |
 +--------------------+--------------------------------------------------------+
+
+Notes
+-----
+
+- 480p and 576p shall only be used to produce captions for secondary video streams, not primary.
+- Real 60 fps is only supported on the UHD BD format.
+- Captions for 4K UHD BDs are always rendered at 1080p. The players upscale the presentation graphics on playback.
+- For Blu-ray, 59.94 is seemingly only for 720p59.94 content. 1080i59.94 should use 29.97, but there may be some leeway and it does not appear to be enforced.
