@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* Additional changes: Copyright © 2023, cubicibo
+/* Additional changes: Copyright © 2024, cubicibo
  * The same agreement notice applies.
  */
 
@@ -26,6 +26,8 @@
 #include <string.h>
 
 #include "common.h"
+
+#define A2B_VERSION_STRING "0.7b"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
@@ -51,13 +53,14 @@ vfmt_t vfmts[] = {
     {"1080p", 1920, 1440, -1, 1920, 1080},
     {"1080i", 1920, 1440, -1, 1920, 1080},
     {"720p",  1280, 960,  -1, 1280, 720},
-    {"576p",  1024, 720, 768, 720,  576},
+    {"576p",  1024, 720, 768, 720,  576}, //Secondary videostream only
     {"576i",  1024, 720, 768, 720,  576},
-    {"480p",  852,  720, 640, 720,  480},
+    {"480p",  852,  720, 640, 720,  480}, //Secondary videostream only
     {"480i",  852,  720, 640, 720,  480},
     {NULL, 0, 0, 0, 0, 0}
 };
 
+#define OPT_ARG_VERSION        993
 #define OPT_ARG_NEGATIVE       994
 #define OPT_ARG_DVD_MODE       995
 #define OPT_ARG_FRAME_HEIGHT   996
@@ -263,6 +266,7 @@ int main(int argc, char *argv[])
         {"dvd-mode",     no_argument,       0, OPT_ARG_DVD_MODE},
         {"hinting",      no_argument,       0, OPT_ARG_HINTING},
         {"keep-dupes",   no_argument,       0, OPT_ARG_KEEPDUPES},
+        {"version",      no_argument,       0, OPT_ARG_VERSION},
         {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
         {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
         {"liq-speed",    required_argument, 0, OPT_LIQ_SPEED},
@@ -414,6 +418,10 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 liq_params |= 1;
+                break;
+            case OPT_ARG_VERSION:
+                printf("ass2bdnxml v" A2B_VERSION_STRING " (c) 2015 mia-0, (c) 2024 cubicibo\n");
+                exit(0);
                 break;
             default:
                 die_usage(argv[0]);
