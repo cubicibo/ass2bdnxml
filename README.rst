@@ -62,9 +62,6 @@ The following optional arguments are available:
 | ``-h``             | Flag to squeeze bitmaps to correct aspect ratio. Needed|
 | ``--anamorphic``   | for SD anamorphic content else subs will be stretched. |
 +--------------------+--------------------------------------------------------+
-| ``-z``             | Flag to correct the square pixel horizontal stretch    |
-| ``--squarepx``     | with SD 4:3 content. Use ``--anamorphic`` for 16:9 SD. |
-+--------------------+--------------------------------------------------------+
 | ``-u``             | Do 4:3 rendering for 16:9 container (e.g 1440x1080     |
 | ``--fullscreen``   | pillarboxed to 1920x1080). Recommended for ASS made    |
 |                    | with the 4/3 geometry clip rather than pillarboxed one.|
@@ -125,6 +122,9 @@ Moreover, the last table has debugging parameters. These should not have any pra
 +--------------------+--------------------------------------------------------+
 | Option             | Effect                                                 |
 +====================+========================================================+
+| ``--squarepx``     | Experimental: Flag to fix the square pixel stretch with|
+|                    | SD 4:3 content. Use ``--anamorphic`` for 16:9 SD.      |
++--------------------+--------------------------------------------------------+
 | ``--height-store`` | Sets the ASS storage height. Only useful for ASS files |
 |                    | with complex transforms and unusual video height.      |
 +--------------------+--------------------------------------------------------+

@@ -60,7 +60,9 @@ vfmt_t vfmts[] = {
     {NULL, 0, 0, 0, 0, 0}
 };
 
-#define OPT_ARG_VERSION        993
+#define OPT_ARG_VERSION        975
+
+#define OPT_ARG_SQUAREPIX      993
 #define OPT_ARG_NEGATIVE       994
 #define OPT_ARG_DVD_MODE       995
 #define OPT_ARG_FRAME_HEIGHT   996
@@ -258,7 +260,7 @@ int main(int argc, char *argv[])
         {"trackname",    required_argument, 0, 't'},
         {"fullscreen",   no_argument,       0, 'u'},
         {"video-format", required_argument, 0, 'v'},
-        {"squarepx",     no_argument,       0, 'z'},
+        {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"width-render", required_argument, 0, 'w'},
         {"width-store",  required_argument, 0, 'x'},
         {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
@@ -299,7 +301,7 @@ int main(int argc, char *argv[])
             case 'u':
                 args.fullscreen = 1;
                 break;
-            case 'z':
+            case OPT_ARG_SQUAREPIX: // 'z'
                 args.square_px = 1;
                 break;
             case OPT_ARG_NEGATIVE:
