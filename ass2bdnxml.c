@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* Additional changes: Copyright © 2023, cubicibo
+/* Additional changes: Copyright © 2024, cubicibo
  * The same agreement notice applies.
  */
 
@@ -27,6 +27,8 @@
 
 #include "common.h"
 
+#define A2B_VERSION_STRING "0.7b"
+
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
     {"24", 24, 24, 1},
@@ -34,31 +36,43 @@ frate_t frates[] = {
     {"29.97", 30, 30000, 1001},
     {"50", 50, 50, 1},
     {"59.94", 60, 60000, 1001},
+    {"60", 60, 60, 1},
     {NULL, 0, 0, 0}
 };
 
 typedef struct vfmt_s {
     char *name;
+    int w_frame_anamorphic;
+    int w_frame_fullscreen;
+    int w_scaled;
     int w;
     int h;
 } vfmt_t;
 
 vfmt_t vfmts[] = {
-    {"1080p", 1920, 1080},
-    {"1080i", 1920, 1080},
-    {"720p", 1280, 720},
-    {"576i", 720, 576},
-    {"480p", 720, 480},
-    {"480i", 720, 480},
-    {NULL, 0, 0}
+    {"1080p", 1920, 1440, -1, 1920, 1080},
+    {"1080i", 1920, 1440, -1, 1920, 1080},
+    {"720p",  1280, 960,  -1, 1280, 720},
+    {"576p",  1024, 720, 768, 720,  576}, //Secondary videostream only
+    {"576i",  1024, 720, 768, 720,  576},
+    {"480p",  852,  720, 640, 720,  480}, //Secondary videostream only
+    {"480i",  852,  720, 640, 720,  480},
+    {NULL, 0, 0, 0, 0, 0}
 };
 
-#define OPT_ARG_HINTING   998
-#define OPT_ARG_KEEPDUPES 999
+#define OPT_ARG_VERSION        975
 
-#define OPT_LIQ_SPEED     1000
-#define OPT_LIQ_DITHER    1001
-#define OPT_LIQ_MAXQUAL   1002
+#define OPT_ARG_SQUAREPIX      993
+#define OPT_ARG_NEGATIVE       994
+#define OPT_ARG_DVD_MODE       995
+#define OPT_ARG_FRAME_HEIGHT   996
+#define OPT_ARG_STORAGE_HEIGHT 997
+#define OPT_ARG_HINTING        998
+#define OPT_ARG_KEEPDUPES      999
+
+#define OPT_LIQ_SPEED         1000
+#define OPT_LIQ_DITHER        1001
+#define OPT_LIQ_MAXQUAL       1002
 
 static void die_usage(const char *name)
 {
@@ -234,9 +248,8 @@ int main(int argc, char *argv[])
     static struct option longopts[] = {
         {"fontdir",      required_argument, 0, 'a'},
         {"copyname",     no_argument,       0, 'c'},
-        {"dvd-mode",     no_argument,       0, 'd'},
         {"fps",          required_argument, 0, 'f'},
-        {"height-render",required_argument, 0, 'h'},
+        {"anamorphic",   no_argument,       0, 'h'},
         {"language",     required_argument, 0, 'l'},
         {"splitmargin",  required_argument, 0, 'm'},
         {"offset",       required_argument, 0, 'o'},
@@ -245,13 +258,17 @@ int main(int argc, char *argv[])
         {"rleopt",       no_argument,       0, 'r'},
         {"split",        required_argument, 0, 's'},
         {"trackname",    required_argument, 0, 't'},
+        {"fullscreen",   no_argument,       0, 'u'},
         {"video-format", required_argument, 0, 'v'},
+        {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"width-render", required_argument, 0, 'w'},
         {"width-store",  required_argument, 0, 'x'},
-        {"height-store", required_argument, 0, 'y'},
-        {"negative",     no_argument,       0, 'z'},
+        {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
+        {"height-store", required_argument, 0, OPT_ARG_STORAGE_HEIGHT},
+        {"dvd-mode",     no_argument,       0, OPT_ARG_DVD_MODE},
         {"hinting",      no_argument,       0, OPT_ARG_HINTING},
         {"keep-dupes",   no_argument,       0, OPT_ARG_KEEPDUPES},
+        {"version",      no_argument,       0, OPT_ARG_VERSION},
         {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
         {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
         {"liq-speed",    required_argument, 0, OPT_LIQ_SPEED},
@@ -260,7 +277,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "cdgrza:f:h:l:m:o:p:q:s:t:v:w:x:y:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "chruza:f:l:m:o:p:q:s:t:v:w:x:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -275,11 +292,20 @@ int main(int argc, char *argv[])
             case 'd':
                 args.dvd_mode = 1;
                 break;
-            case 'z':
-                negative_offset = 1;
+            case 'h':
+                args.anamorphic = 1;
                 break;
             case 'r':
                 args.rle_optimise = 1;
+                break;
+            case 'u':
+                args.fullscreen = 1;
+                break;
+            case OPT_ARG_SQUAREPIX: // 'z'
+                args.square_px = 1;
+                break;
+            case OPT_ARG_NEGATIVE:
+                negative_offset = 1;
                 break;
             case OPT_ARG_HINTING:
                 args.hinting = 1;
@@ -296,13 +322,41 @@ int main(int argc, char *argv[])
             case 'f':
                 frame_rate = optarg;
                 break;
+            case 'm':
+                parse_margins(optarg, args.splitmargin);
+                break;
+            case 'o':
+                tc_to_tcarray(optarg, offset_vals);
+                break;
             case 'p':
-                args.par = strtod(optarg, NULL);
+                subfile = NULL;
+                args.par = strtod(optarg, &subfile);
+                if (args.par > 0 && subfile != NULL && (subfile[0] == ':' || subfile[0] == '/'))
+                {
+                    char *den_stop_char = subfile;
+                    double den = strtod(&subfile[1], &den_stop_char);
+                    if (den > 0 && subfile != den_stop_char) {
+                        args.par /= den;
+                    } else {
+                        printf("Invalid PAR format num=%d den=%d.\n", (int)args.par, (int)den);
+                        exit(1);
+                    }
+                }
                 if (args.par < 0.1 || args.par > 10) {
-                    printf("Unusual PAR, aborting.\n");
+                    printf("Pixel Aspect Ratio must be within [0.1; 10] incl. (as fractional: [1:10; 10:1]).\n");
                     exit(1);
                 }
-                args.par = 1./args.par;
+                subfile = NULL;
+                break;
+            case 'q':
+                args.quantize = (uint16_t)strtol(optarg, NULL, 10);
+                if (args.quantize > 256) {
+                    printf("Colours must be within [0; 256] incl. (default: 0, no quantization, output 32-bit RGBA PNGs).\n");
+                    exit(1);
+                } else if (1 == args.quantize) {
+                    //Cannot quantize with just a single color.
+                    ++args.quantize;
+                }
                 break;
             case 's':
                 args.split = (uint8_t)strtol(optarg, NULL, 10);
@@ -311,23 +365,10 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 break;
-            case 'm':
-                parse_margins(optarg, args.splitmargin);
-                break;
-            case 'o':
-                tc_to_tcarray(optarg, offset_vals);
-                break;
             case 'w':
                 args.render_w = (int)strtol(optarg, NULL, 10);
                 if (args.render_w <= 0 || args.render_w > 4096) {
                     printf("Invalid render width.\n");
-                    exit(1);
-                }
-                break;
-            case 'h':
-                args.render_h = (int)strtol(optarg, NULL, 10);
-                if (args.render_h <= 0 || args.render_h > 4096) {
-                    printf("Invalid render height.\n");
                     exit(1);
                 }
                 break;
@@ -338,21 +379,19 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 break;
-            case 'y':
+            //long args
+            case OPT_ARG_FRAME_HEIGHT:
+                args.render_h = (int)strtol(optarg, NULL, 10);
+                if (args.render_h <= 0 || args.render_h > 4096) {
+                    printf("Invalid render height.\n");
+                    exit(1);
+                }
+                break;
+            case OPT_ARG_STORAGE_HEIGHT:
                 args.storage_h = (int)strtol(optarg, NULL, 10);
                 if (args.storage_h <= 0 || args.storage_h > 4096) {
                     printf("Invalid storage height.\n");
                     exit(1);
-                }
-                break;
-            case 'q':
-                args.quantize = (uint16_t)strtol(optarg, NULL, 10);
-                if (args.quantize > 256) {
-                    printf("Colours must be within [0; 256] incl. (default: 0, no quantization, output 32-bit RGBA PNGs).\n");
-                    exit(1);
-                } else if (1 == args.quantize) {
-                    //Cannot quantize with just a single color.
-                    ++args.quantize;
                 }
                 break;
             case OPT_ARG_KEEPDUPES:
@@ -381,6 +420,10 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 liq_params |= 1;
+                break;
+            case OPT_ARG_VERSION:
+                printf("ass2bdnxml v" A2B_VERSION_STRING " (c) 2015 mia-0, (c) 2024 cubicibo\n");
+                exit(0);
                 break;
             default:
                 die_usage(argv[0]);
@@ -418,7 +461,6 @@ int main(int argc, char *argv[])
     }
 
     i = 0;
-
     while (frates[i].name != NULL) {
         if (!strcasecmp(frates[i].name, frame_rate))
             frate = &frates[i];
@@ -431,7 +473,6 @@ int main(int argc, char *argv[])
     }
 
     i = 0;
-
     while (vfmts[i].name != NULL) {
         if (!strcasecmp(vfmts[i].name, video_format))
             vfmt = &vfmts[i];
@@ -442,41 +483,69 @@ int main(int argc, char *argv[])
         printf("Invalid video format.\n");
         exit(1);
     }
+
+    //frame_x is the normalized BD video container dimension
     args.frame_h = vfmt->h;
     args.frame_w = vfmt->w;
 
-    if ((args.splitmargin[1] > (args.frame_h*3)/4) || (args.splitmargin[0] > (args.frame_w*3)/4)) {
+    uint8_t storage_set = args.storage_w != 0 || args.storage_h != 0;
+    if (args.anamorphic && (args.par > 0 || storage_set || args.square_px)) {
+        printf("Conflicting parameters: anamorphic flag set along PAR and/or storage dimension.\n");
+        exit(1);
+    } else if ((args.par > 0 && (storage_set || args.square_px)) || (storage_set && args.square_px)) {
+        printf("Conflicting parameters: storage dimension and pixel aspect ratio both configured.\n");
+        exit(1);
+    }
+
+    if (vfmt->h <= 576) {
+        if (args.anamorphic) {
+            args.storage_w = vfmt->w_frame_anamorphic;
+        }
+        if (args.square_px) {
+            args.par = vfmt->w_scaled / (double)vfmt->w;
+        }
+    } else if (args.anamorphic || args.square_px) {
+        printf("Pixel stretch flag set on non-SD output, aborting.\nUse \"--width-store DISPLAY_W --width-render SQUEEZED_W\" if absolutely needed.\n");
+        exit(1);
+    }
+
+    // render_size is ASS frame_size
+    if (args.render_w == 0)
+        args.render_w = args.fullscreen ? vfmt->w_frame_fullscreen : args.frame_w;
+    if (args.render_h == 0)
+        args.render_h = args.frame_h;
+    if (args.render_h > args.frame_h || args.render_w > args.frame_w) {
+        printf("Cannot render to dimensions larger than container format (%dx%d) > (%dx%d).\n", args.render_w, args.render_h, args.frame_w, args.frame_h);
+        exit(1);
+    }
+
+    if ((args.splitmargin[1] > (args.render_h*3)/4) || (args.splitmargin[0] > (args.render_w*3)/4)) {
         printf("Excessive split margin(s), should be less than 3/4 of video height or width.\n");
         exit(1);
     }
 
-    // Some mapping
-    if (args.render_w == 0)
-        args.render_w = args.frame_w;
-    if (args.render_h == 0)
-        args.render_h = args.frame_h;
-    if (args.render_h > args.frame_h || args.render_w > args.frame_w) {
-        printf("Cannot render ASS file with larger width or height than video format.\n");
-        exit(1);
+    //1:1 to render size unless specified otherwise
+    if (args.storage_h == 0) {
+        args.storage_h = args.render_h;
     }
-    if (args.storage_h > 0 || args.storage_w > 0) {
-        if (args.storage_h == 0) {
-            args.storage_h = args.render_h;
-        }
-        if (args.storage_w == 0) {
-            args.storage_w = args.render_w;
-        }
+    if (args.storage_w == 0) {
+        args.storage_w = args.render_w;
     }
+
     //Compute timing offset
     args.offset = tcarray_to_frame(offset_vals, frate);
     if (negative_offset)
         args.offset *= -1;
 
+    //The bdn encodes the squeeze
+    if (args.par > 0)
+        args.par = 1.0/args.par;
+
     if (args.quantize) {
         //RLE optimise discard palette entry zero, we have one less usable entry, ensure we don't overshoot the 8-bit id
         if (args.rle_optimise && args.quantize >= 256) {
             args.quantize -= 1;
-            printf("ass2bdnxml: RLE optimisation enabled, only using %d colors.\n", args.quantize);
+            printf(A2B_LOG_PREFIX "RLE optimisation enabled, only using %d colors.\n", args.quantize);
         }
         liqargs.max_quality = MAX(0, MIN(100, liqargs.max_quality));
     } else if (liq_params) {

@@ -34,16 +34,15 @@ The following optional arguments are available:
 | Option             | Effect                                                 |
 +====================+========================================================+
 | ``-v``             | Sets the video format to render subtitles in.          |
-| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576i, 480p, 480i.         |
+| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576p, 576i, 480p, 480i.   |
 |                    | Default: ``1080p``                                     |
 +--------------------+--------------------------------------------------------+
 | ``-f``             | Sets the video frame rate.                             |
-| ``--fps``          | Choices: 23.976, 24, 25, 29.97, 50, 59.94.             |
+| ``--fps``          | Values: 23.976, 24, 25, 29.97, 50, 59.94, 60 (UHD only)|
 |                    | Default: ``23.976``                                    |
 +--------------------+--------------------------------------------------------+
 | ``-q``             | Sets and enable image quantization with N colors.      |
-| ``--quantize``     | Choices: value in [0; 256].                            |
-|                    | Default: ``0`` (Disabled, PNGs are 32-bit RGBA)        |
+| ``--quantize``     | Value in [0; 256] inc. Default: ``0`` (32bit RGBA PNGs)|
 |                    | **Notes: DO NOT USE if target is SUPer.**              |
 |                    | This must be enabled if target software is Scenarist BD|
 +--------------------+--------------------------------------------------------+
@@ -60,15 +59,19 @@ The following optional arguments are available:
 |                    | Default: 0x0. Split search is done on 8x8 grid anyway. |
 |                    | Note: If only V is given, 'x' separator must be omitted|
 +--------------------+--------------------------------------------------------+
-| ``-p``             | Sets the ASS pixel aspect ratio. Required for          |
-| ``--par``          | anamorphic content. Defaults to libass default value.  |
+| ``-h``             | Flag to squeeze bitmaps to correct aspect ratio. Needed|
+| ``--anamorphic``   | for SD anamorphic content else subs will be stretched. |
++--------------------+--------------------------------------------------------+
+| ``-u``             | Do 4:3 rendering for 16:9 container (e.g 1440x1080     |
+| ``--fullscreen``   | pillarboxed to 1920x1080). Recommended for ASS made    |
+|                    | with the 4/3 geometry clip rather than pillarboxed one.|
++--------------------+--------------------------------------------------------+
+| ``-p``             | Set custom pixel aspect ratio in rendering.            |
+| ``--par``          | Format: floating point or fraction like ``852:720``.   |
 +--------------------+--------------------------------------------------------+
 | ``-o``             | Sets the TC offset to shift all of the BDN Timecodes.  |
 | ``--offset``       | Default: ``00:00:00:00`` (offset of zero frame)        |
 |                    | Note: TC string must be the standard SMPTE NDF format. |
-+--------------------+--------------------------------------------------------+
-| ``-z``             | Flag to indicate a negative ``--offset``.              |
-| ``--negative``     | Ignored if no offset is provided.                      |
 +--------------------+--------------------------------------------------------+
 | ``-r``             | Flag to encode PNGs without using palette entry zero   |
 | ``--rleopt``       | Can prevent RLE/line width encoding errors at authoring|
@@ -83,20 +86,19 @@ The following optional arguments are available:
 | ``-l``             | Sets the language of the subtitle track.               |
 | ``--language``     | Default: ``und``                                       |
 +--------------------+--------------------------------------------------------+
-| ``-w``             | Sets the width to use as ASS frame & storage space     |
-| ``--render-width`` | Defaults to output width if not specified. Some ass    |
-|                    | tags may not render properly if the value is improper. |
+| ``-w``             | Sets the ASS event output width, defaults to BDN width.|
+| ``--width-render`` | Equal to the squeezed width for SD anamorphic as the   |
+|                    | player will unsqueeze. Prefer ``-h`` if possible.      |
 +--------------------+--------------------------------------------------------+
-| ``-h``             | Sets the height to use as ASS frame & storage space    |
-| ``--render-height``| Defaults to output height if not specified. Some ass   |
-|                    | tags may not render properly if the value is improper. |
+| ``-x``             | Sets the ASS storage width, defaults to BDN width.     |
+| ``--width-store``  | Equals unsqueezed width for SD anamorphic.             |
+|                    | Prefer ``-h`` if possible.                             |
 +--------------------+--------------------------------------------------------+
-| ``-x``             | Sets the ASS storage width. I.e the pre-anamorphic     |
-| ``--width-store``  | width. ``-p`` should be preferred, Last resort option. |
-+--------------------+--------------------------------------------------------+
-| ``-y``             | Sets the ASS storage height. Last resort option for    |
-| ``--height-store`` | ASS with complex transforms with unusual video height. |
-+--------------------+--------------------------------------------------------+
+
+The naming scheme for ``--width-render`` and ``--width-store`` with respect to the expected values may
+seem counterintuitive but it is logical. This is to configure libass to do the inverse transform of
+the anamorphic stretch, so subtitles appear normally when the Blu-ray players stretch them to widescreen.
+However, ``--anamorphic`` should do the magic and you should only ever use those for non-standard files.
 
 Below are parameters to tune libimagequant (LIQ). Those shall only be used along ``--quantize`` (``-q``). Only long parameters names are available.
 
@@ -120,12 +122,32 @@ Moreover, the last table has debugging parameters. These should not have any pra
 +--------------------+--------------------------------------------------------+
 | Option             | Effect                                                 |
 +====================+========================================================+
-| ``-d``             | Flag to apply a contrast change that may improve       |
-| ``--dvd-mode``     | subtitle appearance with the limited resolution and    |
+| ``--squarepx``     | Experimental: Flag to fix the square pixel stretch with|
+|                    | SD 4:3 content. Use ``--anamorphic`` for 16:9 SD.      |
++--------------------+--------------------------------------------------------+
+| ``--height-store`` | Sets the ASS storage height. Only useful for ASS files |
+|                    | with complex transforms and unusual video height.      |
++--------------------+--------------------------------------------------------+
+| ``--render-height``| Sets the height to use as output ASS frame.            |
+|                    | Defaults to BDN output height if unspecified.          |
++--------------------+--------------------------------------------------------+
+| ``--dvd-mode``     | Flag to apply a contrast change that may improve       |
+|                    | subtitle appearance with the limited resolution and    |
 |                    | color palette of DVD subtitles.                        |
 +--------------------+--------------------------------------------------------+
 | ``--keep-dupes``   | Flag to not merge events that are reported as different|
 |                    | by libass yet identical when composited (e.g ASSDraw). |
 +--------------------+--------------------------------------------------------+
+| ``--negative``     | Flag to indicate a negative ``--offset``.              |
+|                    | Ignored if no ``--offset`` provided.                   |
++--------------------+--------------------------------------------------------+
 | ``--hinting``      | Flag to enable soft hinting in libass.                 |
 +--------------------+--------------------------------------------------------+
+
+Notes
+-----
+
+- 480p and 576p shall only be used to produce captions for secondary video streams, not primary.
+- Real 60 fps is only supported on the UHD BD format.
+- Captions for 4K UHD BDs are always rendered at 1080p. The players upscale the presentation graphics on playback.
+- For Blu-ray, 59.94 is seemingly only for 720p59.94 content. 1080i59.94 should use 29.97, but there may be some leeway and it does not appear to be enforced.
