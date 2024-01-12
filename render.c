@@ -367,15 +367,15 @@ static void blend_single(image_t * frame, ASS_Image *img)
                 if (dst[c+3]) {
                     outa = (k * 255 + (dst[c + 3] * (255 - k)));
 
-                    dst[c    ] = MIN(255, ablend(k, b, dst[c + 3], dst[c    ], outa));
-                    dst[c + 1] = MIN(255, ablend(k, g, dst[c + 3], dst[c + 1], outa));
-                    dst[c + 2] = MIN(255, ablend(k, r, dst[c + 3], dst[c + 2], outa));
-                    dst[c + 3] = MIN(255, div255(outa));
+                    dst[c  ] = MIN(255, ablend(k, b, dst[c+3], dst[c  ], outa));
+                    dst[c+1] = MIN(255, ablend(k, g, dst[c+3], dst[c+1], outa));
+                    dst[c+2] = MIN(255, ablend(k, r, dst[c+3], dst[c+2], outa));
+                    dst[c+3] = MIN(255, div255(outa));
                 } else {
-                    dst[c    ] = b;
-                    dst[c + 1] = g;
-                    dst[c + 2] = r;
-                    dst[c + 3] = k;
+                    dst[c  ] = b;
+                    dst[c+1] = g;
+                    dst[c+2] = r;
+                    dst[c+3] = k;
                 }
             }
         }
@@ -418,6 +418,24 @@ static void blend(image_t *frame, ASS_Image *img)
 
         buf += frame->stride;
     }
+
+    //Ensure minimum width and height of 8 pixels.
+    c = (frame->subx2 - frame->subx1) - 8;
+    if (c < 0) {
+        c = abs(c);
+        if (frame->subx2 + c < frame->width)
+            frame->subx2 += c;
+        else
+            frame->subx1 -= c;
+    }
+    c = (frame->suby2 - frame->suby1) - 8;
+    if (c < 0) {
+        c = abs(c);
+        if (frame->suby2 + c < frame->height)
+            frame->suby2 += c;
+        else
+            frame->suby1 -= c;
+    }
 }
 
 static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
@@ -427,16 +445,17 @@ static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int 
 
     //left
     pixelExist = 0;
-    for (xk = frame->subx1; xk < frame->subx2 - margin && !pixelExist; xk++) {
+    for (xk = frame->subx1; xk <= frame->subx2 - margin && !pixelExist; xk++) {
         for (yk = y_start; yk < y_stop; yk++) {
             pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
         }
     }
+    //sub one since inc before cmp !pixelExist
     box->x1 = MAX(xk-1, frame->subx1);
 
     //right
     pixelExist = 0;
-    for (xk = frame->subx2; xk > frame->subx1 + margin && !pixelExist; xk--) {
+    for (xk = frame->subx2; xk >= frame->subx1 + margin && !pixelExist; xk--) {
         for (yk = y_start; yk < y_stop; yk++) {
             pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
         }
@@ -447,7 +466,7 @@ static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int 
         box->y1 = frame->suby1;
 
         pixelExist = 0;
-        for (yk = y_stop; yk > y_start + margin && !pixelExist; yk--) {
+        for (yk = y_stop; yk >= y_start + margin && !pixelExist; yk--) {
             for (xk = box->x1; xk <= box->x2; xk++) {
                 pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
             }
@@ -473,7 +492,7 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
 
     //top
     pixelExist = 0;
-    for (yk = frame->suby1; (yk < frame->suby2 - margin) && !pixelExist; yk++) {
+    for (yk = frame->suby1; (yk <= frame->suby2 - margin) && !pixelExist; yk++) {
         for (xk = x_start; xk < x_stop; xk++) {
             pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
         }
@@ -482,7 +501,7 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
 
     //bottom
     pixelExist = 0;
-    for (yk = frame->suby2; (yk > frame->suby1 + margin) && !pixelExist; yk--) {
+    for (yk = frame->suby2; (yk >= frame->suby1 + margin) && !pixelExist; yk--) {
         for (xk = x_start; xk < x_stop; xk++) {
             pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
         }
@@ -493,7 +512,7 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
         box->x1 = frame->subx1;
 
         pixelExist = 0;
-        for (xk = x_stop; xk > x_start + margin && !pixelExist; xk--) {
+        for (xk = x_stop; xk >= x_start + margin && !pixelExist; xk--) {
             for (yk = box->y1; yk <= box->y2; yk++) {
                 pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
             }
@@ -503,7 +522,7 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
         box->x2 = frame->subx2;
 
         pixelExist = 0;
-        for (xk = x_start; xk < x_stop - margin && !pixelExist; xk++) {
+        for (xk = x_start; xk <= x_stop - margin && !pixelExist; xk++) {
             for (yk = box->y1; yk <= box->y2; yk++) {
                 pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
             }
@@ -515,65 +534,64 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
 static int find_split(image_t *frame, opts_t *args)
 {
     const int margin = 8;
+    const int step = (args->split < 4) ? 8 : 1;
     uint32_t best_score = (uint32_t)(-1);
     uint8_t pixelExist;
 
     int yk, xk;
     memset(frame->crops, 0xFF, sizeof(BoundingBox_t)*2);
 
-    //Prevent splits smaller than 8 pixels
-    if (frame->suby2 - frame->suby1 < margin*2) {
-        return 0;
-    }
-
     BoundingBox_t eval[2];
     uint32_t surface = 0;
 
-    //Search for a horizontal split
-    for (yk = frame->suby1 + margin; yk < frame->suby2 - margin; yk+=margin) {
-        pixelExist = 0;
-        for (xk = frame->subx1; xk < frame->subx2 && !pixelExist; xk++) {
-            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
-        }
-
-        //Line is used by data, skip to the next split.
-        if (pixelExist) {
-            continue;
-        }
-
-        find_bbox_ysplit(frame, frame->suby1, yk, margin, &eval[0]);
-        find_bbox_ysplit(frame, yk, frame->suby2, margin, &eval[1]);
-
-        surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
-        if (surface < best_score && abs(eval[0].y2 - eval[1].y1) >= args->splitmargin[0]) {
-            best_score = surface;
-            memcpy(frame->crops, eval, sizeof(eval));
-        }
-    }
-    if (args->split == 3 || (args->split == 2 && (frame->suby2 - frame->suby1) > frame->height/2.5)) {
-        //Search for a vertical split
-        for (xk = frame->subx1 + margin; xk < frame->subx2 - margin; xk+=margin) {
+    if (frame->suby2 - frame->suby1 > margin*2) {
+        //Search for a horizontal split
+        for (yk = frame->suby1 + margin; yk <= frame->suby2 - margin; yk+=step) {
             pixelExist = 0;
-            for (yk = frame->suby1; yk < frame->suby2 && !pixelExist; yk++) {
+            for (xk = frame->subx1; xk <= frame->subx2 && !pixelExist; xk++) {
                 pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
             }
 
             //Line is used by data, skip to the next split.
-            if (pixelExist) {
+            if (pixelExist && args->split < 4) {
                 continue;
             }
 
-            find_bbox_xsplit(frame, frame->subx1, xk, margin, &eval[0]);
-            find_bbox_xsplit(frame, xk, frame->subx2, margin, &eval[1]);
+            find_bbox_ysplit(frame, frame->suby1, yk, margin, &eval[0]);
+            find_bbox_ysplit(frame, yk+1, frame->suby2, margin, &eval[1]);
 
             surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
-            if (surface < best_score && abs(eval[0].x2 - eval[1].x1) >= args->splitmargin[1]) {
+            if (surface < best_score && abs(eval[0].y2 - eval[1].y1) >= args->splitmargin[0]) {
                 best_score = surface;
                 memcpy(frame->crops, eval, sizeof(eval));
             }
         }
     }
+    if (frame->subx2 - frame->subx1 > margin*2) {
+        if (args->split >= 3 || (args->split == 2 && (frame->suby2 - frame->suby1) > frame->height/2.5)) {
+            //Search for a vertical split
+            for (xk = frame->subx1 + margin; xk <= frame->subx2 - margin; xk+=step) {
+                pixelExist = 0;
+                for (yk = frame->suby1; yk <= frame->suby2 && !pixelExist; yk++) {
+                    pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
+                }
 
+                //Line is used by data, skip to the next split.
+                if (pixelExist && args->split < 4) {
+                    continue;
+                }
+
+                find_bbox_xsplit(frame, frame->subx1, xk, margin, &eval[0]);
+                find_bbox_xsplit(frame, xk+1, frame->subx2, margin, &eval[1]);
+
+                surface = BOX_AREA(eval[0]) + BOX_AREA(eval[1]);
+                if (surface < best_score && abs(eval[0].x2 - eval[1].x1) >= args->splitmargin[1]) {
+                    best_score = surface;
+                    memcpy(frame->crops, eval, sizeof(eval));
+                }
+            }
+        }
+    }
     return best_score < (uint32_t)(-1);
 }
 

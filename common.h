@@ -42,14 +42,15 @@ typedef struct opts_s {
     int storage_h;
     uint16_t quantize;
     uint16_t splitmargin[2];
-    uint8_t dvd_mode     : 1;
-    uint8_t hinting      : 1;
-    uint8_t split        : 1;
-    uint8_t rle_optimise : 1;
-    uint8_t keep_dupes   : 1;
-    uint8_t anamorphic   : 1;
-    uint8_t fullscreen   : 1;
-    uint8_t square_px    : 1;
+    uint16_t dvd_mode     : 1;
+    uint16_t hinting      : 1;
+    uint16_t split        : 4;
+    uint16_t rle_optimise : 1;
+    uint16_t keep_dupes   : 1;
+    uint16_t anamorphic   : 1;
+    uint16_t fullscreen   : 1;
+    uint16_t square_px    : 1;
+    uint16_t _bpad        : 5;
     const char *fontdir;
 } opts_t;
 
