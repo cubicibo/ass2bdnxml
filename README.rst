@@ -50,7 +50,7 @@ The following optional arguments are available:
 | ``--fontdir``      | embedded in the ASS or provided by the OS font manager.|
 +--------------------+--------------------------------------------------------+
 | ``-s``             | Sets the event split across 2 graphics behaviour.      |
-| ``--split``        | 0: Disabled, 1: Normal, 2: Strong, 3: Very aggressive. |
+| ``--split``        | 0: Off, 1: Normal, 2: Strong, 3: Aggressive, 4: Ugly   |
 |                    | Default: ``0`` (Disabled)                              |
 |                    | **Note: DO NOT USE if target is SUPer.**               |
 +--------------------+--------------------------------------------------------+

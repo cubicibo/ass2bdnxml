@@ -360,14 +360,14 @@ int main(int argc, char *argv[])
                 break;
             case 's':
                 args.split = (uint8_t)strtol(optarg, NULL, 10);
-                if (args.split > 3) {
+                if (args.split > 4) {
                     printf("Invalid split mode.\n");
                     exit(1);
                 }
                 break;
             case 'w':
                 args.render_w = (int)strtol(optarg, NULL, 10);
-                if (args.render_w <= 0 || args.render_w > 4096) {
+                if (args.render_w <= 32 || args.render_w > 4096) {
                     printf("Invalid render width.\n");
                     exit(1);
                 }
@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
             //long args
             case OPT_ARG_FRAME_HEIGHT:
                 args.render_h = (int)strtol(optarg, NULL, 10);
-                if (args.render_h <= 0 || args.render_h > 4096) {
+                if (args.render_h <= 32 || args.render_h > 4096) {
                     printf("Invalid render height.\n");
                     exit(1);
                 }
