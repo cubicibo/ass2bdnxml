@@ -60,19 +60,23 @@ vfmt_t vfmts[] = {
     {NULL, 0, 0, 0, 0, 0}
 };
 
-#define OPT_ARG_VERSION        975
-
-#define OPT_ARG_SQUAREPIX      993
-#define OPT_ARG_NEGATIVE       994
-#define OPT_ARG_DVD_MODE       995
-#define OPT_ARG_FRAME_HEIGHT   996
-#define OPT_ARG_STORAGE_HEIGHT 997
-#define OPT_ARG_HINTING        998
-#define OPT_ARG_KEEPDUPES      999
-
-#define OPT_LIQ_SPEED         1000
-#define OPT_LIQ_DITHER        1001
-#define OPT_LIQ_MAXQUAL       1002
+enum opts_short_e {
+    //A2B general
+    OPT_ARG_VERSION        = 975,
+    //A2B renderer
+    OPT_ARG_DIM            = 992,
+    OPT_ARG_SQUAREPIX,
+    OPT_ARG_NEGATIVE,
+    OPT_ARG_DVD_MODE,
+    OPT_ARG_FRAME_HEIGHT,
+    OPT_ARG_STORAGE_HEIGHT,
+    OPT_ARG_HINTING,
+    OPT_ARG_KEEPDUPES,
+    //LIQ
+    OPT_LIQ_SPEED          = 1000,
+    OPT_LIQ_DITHER,
+    OPT_LIQ_MAXQUAL
+};
 
 static void die_usage(const char *name)
 {
@@ -260,9 +264,11 @@ int main(int argc, char *argv[])
         {"trackname",    required_argument, 0, 't'},
         {"fullscreen",   no_argument,       0, 'u'},
         {"video-format", required_argument, 0, 'v'},
-        {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"width-render", required_argument, 0, 'w'},
         {"width-store",  required_argument, 0, 'x'},
+        {"downsample",   no_argument,       0, 'z'},
+        {"dim",          required_argument, 0, OPT_ARG_DIM},
+        {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
         {"height-store", required_argument, 0, OPT_ARG_STORAGE_HEIGHT},
         {"dvd-mode",     no_argument,       0, OPT_ARG_DVD_MODE},
@@ -289,9 +295,6 @@ int main(int argc, char *argv[])
             case 'c':
                 copy_name = 1;
                 break;
-            case 'd':
-                args.dvd_mode = 1;
-                break;
             case 'h':
                 args.anamorphic = 1;
                 break;
@@ -301,7 +304,21 @@ int main(int argc, char *argv[])
             case 'u':
                 args.fullscreen = 1;
                 break;
-            case OPT_ARG_SQUAREPIX: // 'z'
+            case 'z':
+                ++args.downsampled;
+                break;
+            case OPT_ARG_DIM:
+                args.dimf = (float)strtod(optarg, NULL);
+                if (args.dimf < 0.0 || args.dimf > 100.0) {
+                    printf("Dimming coefficient not a valid percentage.\n");
+                    exit(1);
+                }
+                args.dimf = MAX(0.0f, MIN(1.0f, 1.0f - (args.dimf/100.0f)));
+                break;
+            case OPT_ARG_DVD_MODE:
+                args.dvd_mode = 1;
+                break;
+            case OPT_ARG_SQUAREPIX:
                 args.square_px = 1;
                 break;
             case OPT_ARG_NEGATIVE:
@@ -481,6 +498,11 @@ int main(int argc, char *argv[])
 
     if (vfmt == NULL) {
         printf("Invalid video format.\n");
+        exit(1);
+    }
+
+    if (args.dvd_mode && args.dimf) {
+        printf("Cannot use both DVD mode and dimming for HDR.\n");
         exit(1);
     }
 
