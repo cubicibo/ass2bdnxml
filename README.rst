@@ -69,6 +69,10 @@ The following optional arguments are available:
 | ``-p``             | Set custom pixel aspect ratio in rendering.            |
 | ``--par``          | Format: floating point or fraction like ``852:720``.   |
 +--------------------+--------------------------------------------------------+
+|                    | Sets a dimming percentage, floating value, in [0, 100] |
+| ``--dim``          | Default: ``0`` (no dimming). Dimming prevents blinding |
+|                    | subtitles with HDR content.                            |
++--------------------+--------------------------------------------------------+
 | ``-o``             | Sets the TC offset to shift all of the BDN Timecodes.  |
 | ``--offset``       | Default: ``00:00:00:00`` (offset of zero frame)        |
 |                    | Note: TC string must be the standard SMPTE NDF format. |
@@ -93,6 +97,10 @@ The following optional arguments are available:
 | ``-x``             | Sets the ASS storage width, defaults to BDN width.     |
 | ``--width-store``  | Equals unsqueezed width for SD anamorphic.             |
 |                    | Prefer ``-h`` if possible.                             |
++--------------------+--------------------------------------------------------+
+| ``-z``             | Additive flag to increment the minimum event duration. |
+| ``--downsample``   | The time grid is adaptive and not constrained to every |
+|                    | other frame. ``-z -z`` sets a min duration of 3 frames.|
 +--------------------+--------------------------------------------------------+
 
 The naming scheme for ``--width-render`` and ``--width-store`` with respect to the expected values may

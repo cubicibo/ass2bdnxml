@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#define A2B_VERSION_STRING "0.7b"
+#define A2B_VERSION_STRING "0.8"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
@@ -524,7 +524,7 @@ int main(int argc, char *argv[])
             args.storage_w = vfmt->w_frame_anamorphic;
         }
         if (args.square_px) {
-            args.par = vfmt->w_scaled / (double)vfmt->w;
+            args.par = vfmt->w / (double)vfmt->w_scaled;
         }
     } else if (args.anamorphic || args.square_px) {
         printf("Pixel stretch flag set on non-SD output, aborting.\nUse \"--width-store DISPLAY_W --width-render SQUEEZED_W\" if absolutely needed.\n");
