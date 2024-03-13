@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#define A2B_VERSION_STRING "0.8"
+#define A2B_VERSION_STRING "0.7c"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
@@ -57,6 +57,7 @@ vfmt_t vfmts[] = {
     {"576i",  1024, 720, 768, 720,  576},
     {"480p",  852,  720, 640, 720,  480}, //Secondary videostream only
     {"480i",  852,  720, 640, 720,  480},
+    {"2160p", 3840, 2160, -1, 3840, 2160},//Illegal, provided out of sympathy
     {NULL, 0, 0, 0, 0, 0}
 };
 
@@ -312,6 +313,8 @@ int main(int argc, char *argv[])
                 if (args.dimf < 0.0 || args.dimf > 100.0) {
                     printf("Dimming coefficient not a valid percentage.\n");
                     exit(1);
+                } else {
+                    args.dim_flag = 1;
                 }
                 args.dimf = MAX(0.0f, MIN(1.0f, 1.0f - (args.dimf/100.0f)));
                 break;
@@ -499,6 +502,8 @@ int main(int argc, char *argv[])
     if (vfmt == NULL) {
         printf("Invalid video format.\n");
         exit(1);
+    } else if (vfmt->h == 2160) {
+        printf("WARNING " A2B_LOG_PREFIX "2160p is NOT a valid BDN format. It is only provided for exotic exports like DCPs!\n");
     }
 
     if (args.dvd_mode && args.dimf) {
@@ -527,7 +532,7 @@ int main(int argc, char *argv[])
             args.par = vfmt->w / (double)vfmt->w_scaled;
         }
     } else if (args.anamorphic || args.square_px) {
-        printf("Pixel stretch flag set on non-SD output, aborting.\nUse \"--width-store DISPLAY_W --width-render SQUEEZED_W\" if absolutely needed.\n");
+        printf("Pixel stretch on non-SD output, aborting.\nUse \"--width-store DISPLAY_W --width-render SQUEEZED_W\" if absolutely needed.\n");
         exit(1);
     }
 

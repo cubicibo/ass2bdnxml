@@ -387,7 +387,7 @@ static void blend_single(image_t * frame, ASS_Image *img)
 
 #define DIM_COLOR(c, p) (uint8_t)(round(p*(float)c))
 
-static void blend(image_t *frame, ASS_Image *img, opts_t *args)
+static void blend(image_t *frame, ASS_Image *img, const float dimf, const uint8_t dim_flag)
 {
     int x, y, c;
     uint8_t *buf = frame->buffer;
@@ -416,10 +416,10 @@ static void blend(image_t *frame, ASS_Image *img, opts_t *args)
                 frame->subx2 = MAX(frame->subx2, x);
                 frame->suby2 = MAX(frame->suby2, y);
 
-                if (args->dimf) {
-                    buf[c  ] = DIM_COLOR(buf[c  ], args->dimf);
-                    buf[c+1] = DIM_COLOR(buf[c+1], args->dimf);
-                    buf[c+2] = DIM_COLOR(buf[c+2], args->dimf);
+                if (dim_flag) {
+                    buf[c  ] = DIM_COLOR(buf[c  ], dimf);
+                    buf[c+1] = DIM_COLOR(buf[c+1], dimf);
+                    buf[c+2] = DIM_COLOR(buf[c+2], dimf);
                 }
             }
         }
@@ -639,7 +639,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
-        blend(frame, img, args);
+        blend(frame, img, args->dimf, args->dim_flag);
         //frame differ from the previous?
         if (NULL == prev_frame) {
             frame->in = frame_cnt;

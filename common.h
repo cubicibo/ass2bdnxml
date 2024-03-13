@@ -52,7 +52,7 @@ typedef struct opts_s {
     uint32_t fullscreen   : 1;
     uint32_t square_px    : 1;
     uint32_t downsampled  : 4;
-    uint32_t _bpad0       : 1; //8
+    uint32_t dim_flag     : 1;
     uint32_t _bpad1       : 16;
     const char *fontdir;
 } opts_t;
