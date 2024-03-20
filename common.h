@@ -33,6 +33,7 @@ typedef struct eventlist_s {
 
 typedef struct opts_s {
     double par;
+    float dimf;
     int64_t offset;
     int frame_w;
     int frame_h;
@@ -42,15 +43,17 @@ typedef struct opts_s {
     int storage_h;
     uint16_t quantize;
     uint16_t splitmargin[2];
-    uint16_t dvd_mode     : 1;
-    uint16_t hinting      : 1;
-    uint16_t split        : 4;
-    uint16_t rle_optimise : 1;
-    uint16_t keep_dupes   : 1;
-    uint16_t anamorphic   : 1;
-    uint16_t fullscreen   : 1;
-    uint16_t square_px    : 1;
-    uint16_t _bpad        : 5;
+    uint32_t dvd_mode     : 1;
+    uint32_t hinting      : 1;
+    uint32_t split        : 4;
+    uint32_t rle_optimise : 1;
+    uint32_t keep_dupes   : 1; //8
+    uint32_t anamorphic   : 1;
+    uint32_t fullscreen   : 1;
+    uint32_t square_px    : 1;
+    uint32_t downsampled  : 4;
+    uint32_t dim_flag     : 1;
+    uint32_t _bpad1       : 16;
     const char *fontdir;
 } opts_t;
 

@@ -385,7 +385,9 @@ static void blend_single(image_t * frame, ASS_Image *img)
     }
 }
 
-static void blend(image_t *frame, ASS_Image *img)
+#define DIM_COLOR(c, p) (uint8_t)(round(p*(float)c))
+
+static void blend(image_t *frame, ASS_Image *img, const float dimf, const uint8_t dim_flag)
 {
     int x, y, c;
     uint8_t *buf = frame->buffer;
@@ -413,6 +415,12 @@ static void blend(image_t *frame, ASS_Image *img)
 
                 frame->subx2 = MAX(frame->subx2, x);
                 frame->suby2 = MAX(frame->suby2, y);
+
+                if (dim_flag) {
+                    buf[c  ] = DIM_COLOR(buf[c  ], dimf);
+                    buf[c+1] = DIM_COLOR(buf[c+1], dimf);
+                    buf[c+2] = DIM_COLOR(buf[c+2], dimf);
+                }
             }
         }
 
@@ -623,7 +631,7 @@ static uint8_t diff_frames(image_t *current, image_t *prev)
 }
 
 static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_frame,
-                     image_t *frame, uint64_t frame_cnt, frate_t *frate)
+                     image_t *frame, uint64_t frame_cnt, frate_t *frate, opts_t *args)
 {
     int changed;
 
@@ -631,7 +639,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
-        blend(frame, img);
+        blend(frame, img, args->dimf, args->dim_flag);
         //frame differ from the previous?
         if (NULL == prev_frame) {
             frame->in = frame_cnt;
@@ -725,7 +733,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
             eventlist_set(evlist, frame, count - 1);
         }
 
-        fres = get_frame(ass_renderer, track, prev_frame, frame, frame_cnt, frate);
+        fres = get_frame(ass_renderer, track, prev_frame, frame, frame_cnt, frate, args);
 
         switch (fres) {
             case 3:
@@ -760,6 +768,10 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
                     liq_image_destroy(img);
                 }
                 count++;
+                if (args->downsampled) {
+                    frame_cnt += args->downsampled;
+                    frame->out += args->downsampled;
+                }
             }
             /* fall through */
             case 2:

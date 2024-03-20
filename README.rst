@@ -69,6 +69,11 @@ The following optional arguments are available:
 | ``-p``             | Set custom pixel aspect ratio in rendering.            |
 | ``--par``          | Format: floating point or fraction like ``852:720``.   |
 +--------------------+--------------------------------------------------------+
+|                    | Sets a floating value dimming percentage, in [0, 100]. |
+| ``--dim``          | Default: ``0`` (no dimming). Dimming prevents blinding |
+|                    | subtitles with HDR content. SDR white dimmed by 33%    |
+|                    | will make white subtitles display at roughly 200 nits. |
++--------------------+--------------------------------------------------------+
 | ``-o``             | Sets the TC offset to shift all of the BDN Timecodes.  |
 | ``--offset``       | Default: ``00:00:00:00`` (offset of zero frame)        |
 |                    | Note: TC string must be the standard SMPTE NDF format. |
@@ -93,6 +98,10 @@ The following optional arguments are available:
 | ``-x``             | Sets the ASS storage width, defaults to BDN width.     |
 | ``--width-store``  | Equals unsqueezed width for SD anamorphic.             |
 |                    | Prefer ``-h`` if possible.                             |
++--------------------+--------------------------------------------------------+
+| ``-z``             | Additive flag to increment the minimum event duration. |
+| ``--downsample``   | The time grid is adaptive and not constrained to every |
+|                    | other frame. ``-z -z`` sets a min duration of 3 frames.|
 +--------------------+--------------------------------------------------------+
 
 The naming scheme for ``--width-render`` and ``--width-store`` with respect to the expected values may
@@ -147,7 +156,6 @@ Moreover, the last table has debugging parameters. These should not have any pra
 Notes
 -----
 
-- 480p and 576p shall only be used to produce captions for secondary video streams, not primary.
 - Real 60 fps is only supported on the UHD BD format.
-- Captions for 4K UHD BDs are always rendered at 1080p. The players upscale the presentation graphics on playback.
-- For Blu-ray, 59.94 is seemingly only for 720p59.94 content. 1080i59.94 should use 29.97, but there may be some leeway and it does not appear to be enforced.
+- Captions for 4K UHD BDs are always rendered at 1080p. BD players always upscale the presentation graphics on playback, as native 2160p subtitles are strictly forbidden by the Blu-ray format.
+- 59.94 is reserved for 480i59.94 and 720p59.94 content. 1080i is either 25 or 29.97, but there may be some leeway.
