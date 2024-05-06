@@ -65,7 +65,12 @@ void eventlist_set(eventlist_t *list, image_t *ev, int index)
 
     if (list->size <= index) {
         list->size = index + 200;
-        list->events = realloc(list->events, sizeof(image_t*) * list->size);
+        image_t **new_list = realloc(list->events, sizeof(image_t*) * list->size);
+        if (!new_list) {
+            printf("Can't allocate memory.\n");
+            exit(1);
+        }
+        list->events = new_list;
     }
 
     list->events[index] = newev;
@@ -633,6 +638,9 @@ static uint8_t diff_frames(image_t *current, image_t *prev)
 static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_frame,
                      image_t *frame, uint64_t frame_cnt, frate_t *frate, opts_t *args)
 {
+    //libass can return blank ASS_Images, we must remember whenever that happen as the changed
+    //flag returned by libass becomes meaningless, and we would corrupt the event.
+    static int prev_invalid = 0;
     int changed;
 
     uint64_t ms = frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_PTSIN);
@@ -640,34 +648,42 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
 
     if (changed && img) {
         blend(frame, img, args->dimf, args->dim_flag);
-        //frame differ from the previous?
-        if (NULL == prev_frame) {
-            frame->in = frame_cnt;
-        } else if (diff_frames(frame, prev_frame)) {
-            frame->in = frame_cnt;
-            memcpy(prev_frame, frame, offsetof(image_t, out));
-            memcpy(prev_frame->buffer, frame->buffer, frame->stride*frame->height);
-        } else {
-            // img exists and is identical to prev.
-            ++frame->out;
-            return 1;
-        }
-        frame->out = frame_cnt + 1;
 
-        //Sometime sampling time is on an active event but the blended image is transparent
-        // because the composition coefficients are weak -> discard
-        if (frame->subx1 == -1 || frame->suby1 == -1) {
+        if (frame->subx1 > -1 && frame->suby1 > -1) {
+            //frame differ from the previous?
+            if (NULL == prev_frame) {
+                frame->in = frame_cnt;
+            } else if (diff_frames(frame, prev_frame)) {
+                frame->in = frame_cnt;
+                memcpy(prev_frame, frame, offsetof(image_t, out));
+                memcpy(prev_frame->buffer, frame->buffer, frame->stride*frame->height);
+            } else {
+                // img exists and is identical to prev.
+                ++frame->out;
+                return 1;
+            }
+            frame->out = frame_cnt + 1;
+        } else {
+            //Sometime sampling time is on an active event but the blended image is transparent
+            // because the composition coefficients are weak -> discard
+            prev_invalid = 1;
+            if (prev_frame)
+                prev_frame->in = (uint64_t)(-1);
             return 2;
         }
+        prev_invalid = 0;
 
         return 3;
     } else if (!changed && img) {
+        if (prev_invalid)
+            return 2;
         ++frame->out;
         return 1;
     } else {
-        //No event, set prev_frame as invalid
+        //No event, change prev_frame content
         if (prev_frame)
             prev_frame->in = (uint64_t)(-1);
+        prev_invalid = 0;
         return 0;
     }
 }

@@ -153,6 +153,17 @@ Moreover, the last table has debugging parameters. These should not have any pra
 | ``--hinting``      | Flag to enable soft hinting in libass.                 |
 +--------------------+--------------------------------------------------------+
 
+Basic Scenarist BD example
+--------------------------
+
+::    ass2bdnxml -f 29.97 -v 1080i -s 2 -q 255 -r --liq-quality 98 subtitle.ass
+
+- 1080i29.97 (``-v 1080i -f 29.97``)
+- quantize with a maximum of 255 colours (``-q 255``)
+- optimise palette layout (``-r``)
+- Set quality to 98%, to enhance stream compression and palette allocation (``--liq-quality 98``)
+- Set image split mode 2 (strong) ``-s 2``
+
 Notes
 -----
 
