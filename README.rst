@@ -117,9 +117,9 @@ Below are parameters to tune libimagequant (LIQ). Those shall only be used along
 | ``--liq-speed``    | LIQ speed. Lower value are slower but higher quality.  |
 |                    | Choices: value within [1; 10] incl. Default: ``4``     |
 +--------------------+--------------------------------------------------------+
-| ``--liq-quality``  | Quantization quality. Values < 100 can be visually     |
-|                    | lossless and will compress way better as PGS.          |
-|                    | Default: ``100`` but 90~97 is recommended in general.  |
+| ``--liq-quality``  | Quantization quality. 100 is best, < 100 is generally  |
+|                    | visually lossless and will compress way better as PGS. |
+|                    | Default: ``99`` but 85~100 is recommended in general.  |
 +--------------------+--------------------------------------------------------+
 | ``--liq-dither``   | Dithering level, value must be within [0; 1.0] incl.   |
 |                    | Default: ``1.0``. Disable: ``0``. LIQ dithering is soft|
@@ -155,8 +155,9 @@ Moreover, the last table has debugging parameters. These should not have any pra
 
 Basic Scenarist BD example
 --------------------------
+::
 
-::    ass2bdnxml -f 29.97 -v 1080i -s 2 -q 255 -r --liq-quality 98 subtitle.ass
+    ass2bdnxml -f 29.97 -v 1080i -s 2 -q 255 -r --liq-quality 98 subtitle.ass
 
 - 1080i29.97 (``-v 1080i -f 29.97``)
 - quantize with a maximum of 255 colours (``-q 255``)

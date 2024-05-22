@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#define A2B_VERSION_STRING "0.7c"
+#define A2B_VERSION_STRING "0.7e"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
     memset(offset_vals, 0, sizeof(offset_vals));
 
     opts_t args;
-    liqopts_t liqargs = {.dither=1.0f, .speed=4, .max_quality=100};
+    liqopts_t liqargs = {.dither=1.0f, .speed=4, .max_quality=99};
 
     memset(&args, 0, sizeof(args));
 
@@ -314,9 +314,9 @@ int main(int argc, char *argv[])
                     printf("Dimming coefficient not a valid percentage.\n");
                     exit(1);
                 } else {
-                    args.dim_flag = 1;
+                    args.dim_flag = args.dimf > 0.0;
+                    args.dimf = MAX(0.0f, MIN(1.0f, 1.0f - (args.dimf/100.0f)));
                 }
-                args.dimf = MAX(0.0f, MIN(1.0f, 1.0f - (args.dimf/100.0f)));
                 break;
             case OPT_ARG_DVD_MODE:
                 args.dvd_mode = 1;
