@@ -134,6 +134,10 @@ Moreover, the last table has debugging parameters. These should not have any pra
 | ``--squarepx``     | Experimental: Flag to fix the square pixel stretch with|
 |                    | SD 4:3 content. Use ``--anamorphic`` for 16:9 SD.      |
 +--------------------+--------------------------------------------------------+
+| ``--full-bitmaps`` | Output bitmaps to the frame size, without cropping.    |
+|                    | I.e all PNGs are 1920x1080 with ``-v 1080p``.          |
++--------------------+--------------------------------------------------------+
+
 | ``--height-store`` | Sets the ASS storage height. Only useful for ASS files |
 |                    | with complex transforms and unusual video height.      |
 +--------------------+--------------------------------------------------------+

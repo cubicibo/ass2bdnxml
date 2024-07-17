@@ -392,7 +392,7 @@ static void blend_single(image_t * frame, ASS_Image *img)
 
 #define DIM_COLOR(c, p) (uint8_t)(round(p*(float)c))
 
-static void blend(image_t *frame, ASS_Image *img, const float dimf, const uint8_t dim_flag)
+static void blend(image_t *frame, ASS_Image *img, const opts_t *args)
 {
     int x, y, c;
     uint8_t *buf = frame->buffer;
@@ -421,15 +421,20 @@ static void blend(image_t *frame, ASS_Image *img, const float dimf, const uint8_
                 frame->subx2 = MAX(frame->subx2, x);
                 frame->suby2 = MAX(frame->suby2, y);
 
-                if (dim_flag) {
-                    buf[c  ] = DIM_COLOR(buf[c  ], dimf);
-                    buf[c+1] = DIM_COLOR(buf[c+1], dimf);
-                    buf[c+2] = DIM_COLOR(buf[c+2], dimf);
+                if (args->dim_flag) {
+                    buf[c  ] = DIM_COLOR(buf[c  ], args->dimf);
+                    buf[c+1] = DIM_COLOR(buf[c+1], args->dimf);
+                    buf[c+2] = DIM_COLOR(buf[c+2], args->dimf);
                 }
             }
         }
 
         buf += frame->stride;
+    }
+    if (args->full_bitmaps) {
+        frame->subx1 = frame->suby1 = 0;
+        frame->subx2 = frame->width - 1;
+        frame->suby2 = frame->height - 1;
     }
 
     //Ensure minimum width and height of 8 pixels.
@@ -647,7 +652,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
-        blend(frame, img, args->dimf, args->dim_flag);
+        blend(frame, img, args);
 
         if (frame->subx1 > -1 && frame->suby1 > -1) {
             //frame differ from the previous?

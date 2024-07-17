@@ -65,7 +65,7 @@ enum opts_short_e {
     //A2B general
     OPT_ARG_VERSION        = 975,
     //A2B renderer
-    OPT_ARG_DIM            = 992,
+    OPT_ARG_DIM            = 990,
     OPT_ARG_SQUAREPIX,
     OPT_ARG_NEGATIVE,
     OPT_ARG_DVD_MODE,
@@ -73,6 +73,7 @@ enum opts_short_e {
     OPT_ARG_STORAGE_HEIGHT,
     OPT_ARG_HINTING,
     OPT_ARG_KEEPDUPES,
+    OPT_ARG_FULLBITMAPS,
     //LIQ
     OPT_LIQ_SPEED          = 1000,
     OPT_LIQ_DITHER,
@@ -275,6 +276,7 @@ int main(int argc, char *argv[])
         {"dvd-mode",     no_argument,       0, OPT_ARG_DVD_MODE},
         {"hinting",      no_argument,       0, OPT_ARG_HINTING},
         {"keep-dupes",   no_argument,       0, OPT_ARG_KEEPDUPES},
+        {"full-bitmaps", no_argument,       0, OPT_ARG_FULLBITMAPS},
         {"version",      no_argument,       0, OPT_ARG_VERSION},
         {"liq-dither",   required_argument, 0, OPT_LIQ_DITHER},
         {"liq-quality",  required_argument, 0, OPT_LIQ_MAXQUAL},
@@ -329,6 +331,9 @@ int main(int argc, char *argv[])
                 break;
             case OPT_ARG_HINTING:
                 args.hinting = 1;
+                break;
+            case OPT_ARG_FULLBITMAPS:
+                args.full_bitmaps = 1;
                 break;
             case 't':
                 track_name = optarg;
