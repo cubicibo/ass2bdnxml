@@ -137,7 +137,6 @@ Moreover, the last table has debugging parameters. These should not have any pra
 | ``--full-bitmaps`` | Output bitmaps to the frame size, without cropping.    |
 |                    | I.e all PNGs are 1920x1080 with ``-v 1080p``.          |
 +--------------------+--------------------------------------------------------+
-
 | ``--height-store`` | Sets the ASS storage height. Only useful for ASS files |
 |                    | with complex transforms and unusual video height.      |
 +--------------------+--------------------------------------------------------+
@@ -168,6 +167,17 @@ Basic Scenarist BD example
 - optimise palette layout (``-r``)
 - Set quality to 98%, to enhance stream compression and palette allocation (``--liq-quality 98``)
 - Set image split mode 2 (strong) ``-s 2``
+
+Basic SUPer example
+--------------------------
+::
+
+    ass2bdnxml.exe -f 23.976 -v 720p -a C:/.../fonts/ subtitle.ass
+
+- 720p23.976 (``-v 720p -f 23.976``)
+- Specify an additional directory for fonts look-up (``-a ./fonts/``), containing fonts files.
+- Quantization shall not be enabled: SUPer will quantize the bitmaps internally!
+- Splits shall not be enabled: SUPer will compute the splits internally!
 
 Notes
 -----
