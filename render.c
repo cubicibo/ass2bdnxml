@@ -8,8 +8,9 @@
 #include "common.h"
 
 #define FILENAME_FMT "%08d"
-#define FILENAME_CNT "_%d"
+#define FILENAME_CNT "_%01d"
 #define FILENAME_EXT ".png"
+#define FILENAME_MAX_LENGTH (20)
 
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
 #define DIV_ROUND_CLOSEST(n, d) (((n) + (d >> 1))/(d))
@@ -106,7 +107,7 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
 
     int k, w, h;
     int h_margin, w_margin;
-    char fname[15];
+    char fname[FILENAME_MAX_LENGTH];
 
     w = rgba_img->subx2 - rgba_img->subx1 + 1;
     h = rgba_img->suby2 - rgba_img->suby1 + 1;
@@ -162,14 +163,14 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
 
     for (uint8_t split_cnt = 0; split_cnt < MIN(2, 1 + is_split); split_cnt++) {
         if (is_split) {
-            snprintf(fname, 15, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, split_cnt);
+            snprintf(fname, FILENAME_MAX_LENGTH, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, split_cnt);
             w = rgba_img->crops[split_cnt].x2 - rgba_img->crops[split_cnt].x1 + 1;
             h = rgba_img->crops[split_cnt].y2 - rgba_img->crops[split_cnt].y1 + 1;
             w_margin = rgba_img->crops[split_cnt].x1;
             h_margin = rgba_img->crops[split_cnt].y1 - rgba_img->suby1;
         } else {
             w_margin = rgba_img->subx1;
-            snprintf(fname, 15, FILENAME_FMT FILENAME_EXT, count);
+            snprintf(fname, FILENAME_MAX_LENGTH, FILENAME_FMT FILENAME_EXT, count);
         }
 
         png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -392,7 +393,7 @@ static void blend_single(image_t * frame, ASS_Image *img)
 
 #define DIM_COLOR(c, p) (uint8_t)(round(p*(float)c))
 
-static void blend(image_t *frame, ASS_Image *img, const float dimf, const uint8_t dim_flag)
+static void blend(image_t *frame, ASS_Image *img, const opts_t *args)
 {
     int x, y, c;
     uint8_t *buf = frame->buffer;
@@ -421,15 +422,20 @@ static void blend(image_t *frame, ASS_Image *img, const float dimf, const uint8_
                 frame->subx2 = MAX(frame->subx2, x);
                 frame->suby2 = MAX(frame->suby2, y);
 
-                if (dim_flag) {
-                    buf[c  ] = DIM_COLOR(buf[c  ], dimf);
-                    buf[c+1] = DIM_COLOR(buf[c+1], dimf);
-                    buf[c+2] = DIM_COLOR(buf[c+2], dimf);
+                if (args->dim_flag) {
+                    buf[c  ] = DIM_COLOR(buf[c  ], args->dimf);
+                    buf[c+1] = DIM_COLOR(buf[c+1], args->dimf);
+                    buf[c+2] = DIM_COLOR(buf[c+2], args->dimf);
                 }
             }
         }
 
         buf += frame->stride;
+    }
+    if (args->full_bitmaps) {
+        frame->subx1 = frame->suby1 = 0;
+        frame->subx2 = frame->width - 1;
+        frame->suby2 = frame->height - 1;
     }
 
     //Ensure minimum width and height of 8 pixels.
@@ -647,7 +653,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
-        blend(frame, img, args->dimf, args->dim_flag);
+        blend(frame, img, args);
 
         if (frame->subx1 > -1 && frame->suby1 > -1) {
             //frame differ from the previous?
@@ -722,7 +728,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
     long long tm = 0;
     int count = 0, fres = 0, img_cnt = 0;
     uint64_t frame_cnt = 1;
-    char imgfile[15];
+    char imgfile[FILENAME_MAX_LENGTH];
 
     liq_result *res;
     liq_image *img;
@@ -767,7 +773,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
                             frame->subx2 = frame->crops[img_cnt].x2;
                             frame->suby1 = frame->crops[img_cnt].y1;
                             frame->suby2 = frame->crops[img_cnt].y2;
-                            snprintf(imgfile, 15, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, img_cnt);
+                            snprintf(imgfile, FILENAME_MAX_LENGTH, FILENAME_FMT FILENAME_CNT FILENAME_EXT, count, img_cnt);
                             write_png(imgfile, frame);
                         }
                     }
@@ -775,7 +781,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
                     if (args->quantize) {
                         write_png_palette(count, frame, &img, &res, args, 0, liqargs->dither);
                     } else {
-                        snprintf(imgfile, 15, FILENAME_FMT FILENAME_EXT, count);
+                        snprintf(imgfile, FILENAME_MAX_LENGTH, FILENAME_FMT FILENAME_EXT, count);
                         write_png(imgfile, frame);
                     }
                 }
