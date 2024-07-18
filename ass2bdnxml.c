@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#define A2B_VERSION_STRING "0.7e"
+#define A2B_VERSION_STRING "0.7f"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
