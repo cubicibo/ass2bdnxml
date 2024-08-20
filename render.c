@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <fenv.h>
 #include <ass/ass.h>
 #include <png.h>
 #include <libimagequant.h>
@@ -13,26 +14,16 @@
 #define FILENAME_MAX_LENGTH (20)
 
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
-#define DIV_ROUND_CLOSEST(n, d) (((n) + (d >> 1))/(d))
-
-typedef enum SamplingFlag_s {
-    SAMPLE_TC_PTSIN,
-    SAMPLE_TC_PTSIN_INT,
-    SAMPLE_TC_PTSMID,
-    SAMPLE_TC_PTSMID_INT,
-    INVALID_SAMPLING
-} SamplingFlag_t;
 
 ASS_Library *ass_library;
 ASS_Renderer *ass_renderer;
 liq_attr *attr;
 
-static image_t *image_init(int width, int height, int dvd_mode)
+static image_t *image_init(int width, int height)
 {
     image_t *img = calloc(1, sizeof(image_t));
     img->width = width;
     img->height = height;
-    img->dvd_mode = dvd_mode;
     img->subx1 = img->suby1 = -1;
     img->stride = width * 4;
     img->buffer = calloc(1, height * width * 4);
@@ -99,7 +90,7 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("\n");
 }
 
-static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split, float dither_val)
+static void write_png_palette(uint32_t count, image_t* restrict rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split, float dither_val)
 {
     FILE *fp;
     png_structp png_ptr;
@@ -217,7 +208,7 @@ static void write_png_palette(uint32_t count, image_t *rgba_img, liq_image **img
     free(palette);
 }
 
-static void write_png(char *fname, image_t *img)
+static void write_png(char *fname, image_t* restrict img)
 {
     FILE *fp;
     png_structp png_ptr;
@@ -275,6 +266,10 @@ static void write_png(char *fname, image_t *img)
 
 static void init(opts_t *args, liqopts_t *liqargs)
 {
+    if (fesetround(FE_TONEAREST)) {
+        printf(A2B_LOG_PREFIX "failed to set configure rounding method. Bitmaps may suffer from colour drift.\n");
+    }
+
     ass_library = ass_library_init();
     if (!ass_library) {
         printf("ass_library_init failed!\n");
@@ -336,17 +331,17 @@ static void init(opts_t *args, liqopts_t *liqargs)
 #define _b(c)  (((c)>>8)&0xFF)
 #define _a(c)  ((c)&0xFF)
 
-#define div256(i) ((i+128) >> 8)
-#define div255(i) (div256(i + div256(i)))
+#define div65025P(i) lrint(i/65025.0)
+#define div255P(i) lrint(i/255.0)
 
-#define ablend(srcA, srcRGB, dstA, dstRGB, outA) \
-    (((srcA * 255 * srcRGB + dstRGB * dstA * (255 - srcA) + (outA >> 1)) / outA))
+#define ablend(iA, oA, iC, oC, nA) \
+    lrint((iA * 255 * iC + (65025 - iA) * oC * oA) / (float)nA)
 
-static void blend_single(image_t * frame, ASS_Image *img)
+static void blend_single(image_t* restrict frame, ASS_Image *img)
 {
     int x, y, c;
     uint32_t outa, k;
-    uint8_t opacity = 255 - _a(img->color);
+    uint16_t opacity = 255 - _a(img->color);
     uint8_t r = _r(img->color);
     uint8_t g = _g(img->color);
     uint8_t b = _b(img->color);
@@ -359,29 +354,21 @@ static void blend_single(image_t * frame, ASS_Image *img)
 
     for (y = 0; y < img->h; y++) {
         for (x = 0, c = 0; x < img->w; x++, c += 4) {
-            k = MIN(div255(src[x] * opacity), 255);
-
-            if (frame->dvd_mode) {
-                if (dst[c+3])
-                    k = (MIN((int)(255 * pow((k / 255.0), 1 / 0.75) * 1.2),
-                             255) / 127) * 127;
-                else
-                    k = k > 164 ? 255 : 0;
-            }
+            k = src[x] * opacity;
 
             if (k) {
                 if (dst[c+3]) {
-                    outa = (k * 255 + (dst[c + 3] * (255 - k)));
+                    outa = (k * 255 + (dst[c + 3] * (65025 - k)));
 
-                    dst[c  ] = MIN(255, ablend(k, b, dst[c+3], dst[c  ], outa));
-                    dst[c+1] = MIN(255, ablend(k, g, dst[c+3], dst[c+1], outa));
-                    dst[c+2] = MIN(255, ablend(k, r, dst[c+3], dst[c+2], outa));
-                    dst[c+3] = MIN(255, div255(outa));
+                    dst[c  ] = ablend(k, dst[c+3], b, dst[c], outa);
+                    dst[c+1] = ablend(k, dst[c+3], g, dst[c+1], outa);
+                    dst[c+2] = ablend(k, dst[c+3], r, dst[c+2], outa);
+                    dst[c+3] = div65025P(outa);
                 } else {
                     dst[c  ] = b;
                     dst[c+1] = g;
                     dst[c+2] = r;
-                    dst[c+3] = k;
+                    dst[c+3] = div255P(k);
                 }
             }
         }
@@ -393,7 +380,7 @@ static void blend_single(image_t * frame, ASS_Image *img)
 
 #define DIM_COLOR(c, p) (uint8_t)(round(p*(float)c))
 
-static void blend(image_t *frame, ASS_Image *img, const opts_t *args)
+static void blend(image_t* restrict frame, ASS_Image *img, const opts_t *args)
 {
     int x, y, c;
     uint8_t *buf = frame->buffer;
@@ -457,7 +444,7 @@ static void blend(image_t *frame, ASS_Image *img, const opts_t *args)
     }
 }
 
-static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
+static void find_bbox_ysplit(image_t* restrict frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
 {
     int pixelExist;
     int xk, yk;
@@ -504,7 +491,7 @@ static void find_bbox_ysplit(image_t *frame, int y_start, int y_stop, const int 
     }
 }
 
-static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int margin, BoundingBox_t *box)
+static void find_bbox_xsplit(image_t* restrict frame, int x_start, int x_stop, const int margin, BoundingBox_t *box)
 {
     uint8_t pixelExist;
     int xk, yk;
@@ -550,7 +537,7 @@ static void find_bbox_xsplit(image_t *frame, int x_start, int x_stop, const int 
     }
 }
 
-static int find_split(image_t *frame, opts_t *args)
+static int find_split(image_t* restrict frame, opts_t *args)
 {
     const int margin = 8;
     const int step = (args->split < 4) ? 8 : 1;
@@ -614,22 +601,12 @@ static int find_split(image_t *frame, opts_t *args)
     return best_score < (uint32_t)(-1);
 }
 
-static uint64_t frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate, SamplingFlag_t flag)
+static uint64_t inline frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate)
 {
-    if (flag == SAMPLE_TC_PTSIN) {
-        return (uint64_t)round((1000*((uint64_t)frame_cnt - 1) * frate->denom)/(double)frate->num);
-    } else if (flag == SAMPLE_TC_PTSIN_INT) {
-        return (uint64_t)DIV_ROUND_CLOSEST(1000*((uint64_t)frame_cnt - 1) * frate->denom, (uint64_t)frate->num);
-    } else if (flag == SAMPLE_TC_PTSMID) {
-        return (uint64_t)round(((1000*(uint64_t)frame_cnt - 500) * frate->denom)/(double)frate->num);
-    } else if (flag == SAMPLE_TC_PTSMID_INT) {
-        return (uint64_t)DIV_ROUND_CLOSEST((1000*(uint64_t)frame_cnt - 500) * frate->denom, (uint64_t)frate->num);
-    }
-    fprintf(stderr, "Invalid sampling flag.\n");
-    exit(1);
+    return (uint64_t)round((1000*((uint64_t)frame_cnt - 1) * frate->denom)/(double)frate->num);
 }
 
-static uint8_t diff_frames(image_t *current, image_t *prev)
+static uint8_t diff_frames(image_t* restrict current, image_t *prev)
 {
     //compare header
     if (0 != memcmp(current, prev, offsetof(image_t, out)))
@@ -641,15 +618,15 @@ static uint8_t diff_frames(image_t *current, image_t *prev)
                         current->stride*(current->suby2 - current->suby1 + 1)));
 }
 
-static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_frame,
-                     image_t *frame, uint64_t frame_cnt, frate_t *frate, opts_t *args)
+static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t* restrict prev_frame,
+                     image_t* restrict frame, uint64_t frame_cnt, frate_t *frate, opts_t *args)
 {
     //libass can return blank ASS_Images, we must remember whenever that happen as the changed
     //flag returned by libass becomes meaningless, and we would corrupt the event.
     static int prev_invalid = 0;
     int changed;
 
-    uint64_t ms = frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_PTSIN);
+    uint64_t ms = frame_to_realtime_ms(frame_cnt, frate);
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
@@ -694,7 +671,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t *prev_fra
     }
 }
 
-static int quantize_event(image_t *frame, liq_image **img, liq_result **qtz_res, opts_t *args)
+static int quantize_event(image_t* restrict frame, liq_image **img, liq_result **qtz_res, opts_t *args)
 {
     *img = liq_image_create_rgba(attr, &frame->buffer[frame->stride*frame->suby1], frame->width, frame->suby2-frame->suby1+1, 0);
     if (NULL == *img)
@@ -746,9 +723,9 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
     printf(A2B_LOG_PREFIX "BDN format: (%dx%d), rendering at (%dx%d) for (%dx%d) display.\n", args->frame_w, args->frame_h,
            args->render_w, args->render_h, (args->par > 0 ? (int)round(args->storage_w/args->par) : args->storage_w), args->storage_h);
 
-    image_t *frame = image_init(args->render_w, args->render_h, args->dvd_mode);
+    image_t *frame = image_init(args->render_w, args->render_h);
     image_t *prev_frame;
-    prev_frame = args->keep_dupes ? NULL : image_init(args->render_w, args->render_h, args->dvd_mode);
+    prev_frame = args->keep_dupes ? NULL : image_init(args->render_w, args->render_h);
 
     while (1) {
         if (fres && fres != 2 && count) {
@@ -802,7 +779,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
                 break;
             case 0:
             {
-                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate, SAMPLE_TC_PTSIN), 1);
+                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate), 1);
                 uint64_t offset = (tm*frate->num)/(frate->denom*1000);
 
                 if (!tm && frame_cnt > 1)

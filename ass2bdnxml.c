@@ -68,7 +68,6 @@ enum opts_short_e {
     OPT_ARG_DIM            = 990,
     OPT_ARG_SQUAREPIX,
     OPT_ARG_NEGATIVE,
-    OPT_ARG_DVD_MODE,
     OPT_ARG_FRAME_HEIGHT,
     OPT_ARG_STORAGE_HEIGHT,
     OPT_ARG_HINTING,
@@ -273,7 +272,6 @@ int main(int argc, char *argv[])
         {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
         {"height-store", required_argument, 0, OPT_ARG_STORAGE_HEIGHT},
-        {"dvd-mode",     no_argument,       0, OPT_ARG_DVD_MODE},
         {"hinting",      no_argument,       0, OPT_ARG_HINTING},
         {"keep-dupes",   no_argument,       0, OPT_ARG_KEEPDUPES},
         {"full-bitmaps", no_argument,       0, OPT_ARG_FULLBITMAPS},
@@ -319,9 +317,6 @@ int main(int argc, char *argv[])
                     args.dim_flag = args.dimf > 0.0;
                     args.dimf = MAX(0.0f, MIN(1.0f, 1.0f - (args.dimf/100.0f)));
                 }
-                break;
-            case OPT_ARG_DVD_MODE:
-                args.dvd_mode = 1;
                 break;
             case OPT_ARG_SQUAREPIX:
                 args.square_px = 1;
@@ -509,11 +504,6 @@ int main(int argc, char *argv[])
         exit(1);
     } else if (vfmt->h == 2160) {
         printf("WARNING " A2B_LOG_PREFIX "2160p is NOT a valid BDN format. It is only provided for exotic exports like DCPs!\n");
-    }
-
-    if (args.dvd_mode && args.dimf) {
-        printf("Cannot use both DVD mode and dimming for HDR.\n");
-        exit(1);
     }
 
     //frame_x is the normalized BD video container dimension

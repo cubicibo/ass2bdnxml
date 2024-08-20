@@ -143,10 +143,6 @@ Moreover, the last table has debugging parameters. These should not have any pra
 | ``--render-height``| Sets the height to use as output ASS frame.            |
 |                    | Defaults to BDN output height if unspecified.          |
 +--------------------+--------------------------------------------------------+
-| ``--dvd-mode``     | Flag to apply a contrast change that may improve       |
-|                    | subtitle appearance with the limited resolution and    |
-|                    | color palette of DVD subtitles.                        |
-+--------------------+--------------------------------------------------------+
 | ``--keep-dupes``   | Flag to not merge events that are reported as different|
 |                    | by libass yet identical when composited (e.g ASSDraw). |
 +--------------------+--------------------------------------------------------+
