@@ -18,7 +18,7 @@ Or you can build it without using a build system::
 
     cc *.c -o ass2bdnxml $(pkg-config --cflags --libs libass) $(pkg-config --cflags --libs libpng) $(pkg-config --cflags --libs imagequant) -lm
 
-(Depending on your platform, you may have to omit ``-lm`` and replace ``libpng`` by ``png``)
+(Depending on your platform, you may have to omit ``-lm`` and replace ``libpng`` by ``png``). Some linux distros may only support libimagequant 2.x.
 
 Usage
 -----
@@ -34,7 +34,7 @@ The following optional arguments are available:
 | Option             | Effect                                                 |
 +====================+========================================================+
 | ``-v``             | Sets the video format to render subtitles in.          |
-| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576p, 576i, 480p, 480i.   |
+| ``--video-format`` | Choices: 1080p, 1080i, 720p, 576i, 480i.               |
 |                    | Default: ``1080p``                                     |
 +--------------------+--------------------------------------------------------+
 | ``-f``             | Sets the video frame rate.                             |
@@ -90,6 +90,9 @@ The following optional arguments are available:
 +--------------------+--------------------------------------------------------+
 | ``-l``             | Sets the language of the subtitle track.               |
 | ``--language``     | Default: ``und``                                       |
++--------------------+--------------------------------------------------------+
+| ``-j``             | Justify (override) all multi-line Dialogue. 0: auto,   |
+| ``--justify``      | 1: left, 2: center, 3: right. Default: no override.    |
 +--------------------+--------------------------------------------------------+
 | ``-w``             | Sets the ASS event output width, defaults to BDN width.|
 | ``--width-render`` | Equal to the squeezed width for SD anamorphic as the   |
@@ -180,4 +183,4 @@ Notes
 
 - Real 60 fps is only supported on the UHD BD format.
 - Captions for 4K UHD BDs are always rendered at 1080p. BD players always upscale the presentation graphics on playback, as native 2160p subtitles are strictly forbidden by the Blu-ray format.
-- 59.94 is reserved for 480i59.94 and 720p59.94 content. 1080i is either 25 or 29.97, but there may be some leeway.
+- 50 and 59.94 is reserved for 720p or UHD content. 1080i, 480i and 576i is only 25 or 29.97, but there may be some leeway.

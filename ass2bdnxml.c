@@ -63,9 +63,9 @@ vfmt_t vfmts[] = {
 
 enum opts_short_e {
     //A2B general
-    OPT_ARG_VERSION        = 975,
+    OPT_ARG_VERSION        = 900,
     //A2B renderer
-    OPT_ARG_DIM            = 990,
+    OPT_ARG_DIM,
     OPT_ARG_SQUAREPIX,
     OPT_ARG_NEGATIVE,
     OPT_ARG_FRAME_HEIGHT,
@@ -255,6 +255,7 @@ int main(int argc, char *argv[])
         {"copyname",     no_argument,       0, 'c'},
         {"fps",          required_argument, 0, 'f'},
         {"anamorphic",   no_argument,       0, 'h'},
+        {"justify",      required_argument, 0, 'j'},
         {"language",     required_argument, 0, 'l'},
         {"splitmargin",  required_argument, 0, 'm'},
         {"offset",       required_argument, 0, 'o'},
@@ -284,7 +285,7 @@ int main(int argc, char *argv[])
 
     while (1) {
         int opt_index = 0;
-        int c = getopt_long(argc, argv, "chruza:f:l:m:o:p:q:s:t:v:w:x:", longopts, &opt_index);
+        int c = getopt_long(argc, argv, "chruza:f:j:l:m:o:p:q:s:t:v:w:x:", longopts, &opt_index);
 
         if (c == -1)
             break;
@@ -399,6 +400,13 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 break;
+            case 'j':
+                args.justify = 1 + (int)strtol(optarg, NULL, 10); /* +1 to denote justify override enabled */
+                if (args.justify <= 0 || args.justify > 4 ) {
+                    printf("Invalid justify override value. Permitted 0: auto, 1: left, 2: center, 3: right. No override whatsoever.\n");
+                    exit(1);
+                }
+                break;
             //long args
             case OPT_ARG_FRAME_HEIGHT:
                 args.render_h = (int)strtol(optarg, NULL, 10);
@@ -442,7 +450,7 @@ int main(int argc, char *argv[])
                 liq_params |= 1;
                 break;
             case OPT_ARG_VERSION:
-                printf("ass2bdnxml v" A2B_VERSION_STRING " (c) 2015 mia-0, (c) 2024 cubicibo\n");
+                printf("ass2bdnxml v" A2B_VERSION_STRING " (c) 2015 mia-0, (c) 2026 cubicibo\n");
                 exit(0);
                 break;
             default:

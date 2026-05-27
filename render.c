@@ -12,6 +12,7 @@
 #define FILENAME_CNT "_%01d"
 #define FILENAME_EXT ".png"
 #define FILENAME_MAX_LENGTH (20)
+#define MARGIN_HV (8)
 
 #define BOX_AREA(box) ((box.x2-box.x1)*(box.y2-box.y1))
 
@@ -285,6 +286,7 @@ static void init(opts_t *args, liqopts_t *liqargs)
     }
 
     ass_renderer = ass_renderer_init(ass_library);
+
     if (!ass_renderer) {
         printf("ass_renderer_init failed!\n");
         exit(1);
@@ -304,6 +306,17 @@ static void init(opts_t *args, liqopts_t *liqargs)
     } else {
         printf("Incorrect hinting value.\n");
         exit(1);
+    }
+
+    // set the override
+    if (args->justify)
+    {
+        ass_set_selective_style_override_enabled(ass_renderer, ASS_OVERRIDE_BIT_JUSTIFY);
+
+        ASS_Style style_override = {0};
+        style_override.FontName = "a2b";
+        style_override.Justify = args->justify - 1;
+        ass_set_selective_style_override(ass_renderer, &style_override);
     }
 
     if (args->quantize) {
@@ -394,17 +407,15 @@ static void blend(image_t* restrict frame, ASS_Image *img, const opts_t *args)
 
     for (y = 0; y < frame->height; y++) {
         for (x = 0, c = 0; x < frame->width; x++, c += 4) {
-            uint8_t k = buf[c + 3];
-
-            if (k) {
-                /* Some DVD and BD players need the offsets to be on mod2
+            if (buf[c + 3]) {
+                /* Some DVD players need the offsets to be on mod2
                  * positions and will misrender subtitles or crash if they
                  * are not. Yeah, really. */
-                if (frame->subx1 < 0) frame->subx1 = x - (x % 2);
-                else frame->subx1 = MIN(frame->subx1, x - (x % 2));
+                if (frame->subx1 >= 0) { frame->subx1 = MIN(frame->subx1, x - (x & 1)); }
+                else { frame->subx1 = x - (x & 1); }
 
-                if (frame->suby1 < 0) frame->suby1 = y - (y % 2);
-                else frame->suby1 = MIN(frame->suby1, y - (y % 2));
+                if (frame->suby1 >= 0) { frame->suby1 = MIN(frame->suby1, y - (y & 1)); }
+                else { frame->suby1 = y - (y & 1); }
 
                 frame->subx2 = MAX(frame->subx2, x);
                 frame->suby2 = MAX(frame->suby2, y);
@@ -425,8 +436,8 @@ static void blend(image_t* restrict frame, ASS_Image *img, const opts_t *args)
         frame->suby2 = frame->height - 1;
     }
 
-    //Ensure minimum width and height of 8 pixels.
-    c = (frame->subx2 - frame->subx1) - 8;
+    //Ensure minimum width and height of 8 pixels (x2 is incl, so 7).
+    c = (frame->subx2 - frame->subx1) - (MARGIN_HV - 1);
     if (c < 0) {
         c = abs(c);
         if (frame->subx2 + c < frame->width)
@@ -434,7 +445,7 @@ static void blend(image_t* restrict frame, ASS_Image *img, const opts_t *args)
         else
             frame->subx1 -= c;
     }
-    c = (frame->suby2 - frame->suby1) - 8;
+    c = (frame->suby2 - frame->suby1) - (MARGIN_HV - 1);
     if (c < 0) {
         c = abs(c);
         if (frame->suby2 + c < frame->height)
@@ -449,45 +460,42 @@ static void find_bbox_ysplit(image_t* restrict frame, int y_start, int y_stop, c
     int pixelExist;
     int xk, yk;
 
-    //left
     pixelExist = 0;
-    for (xk = frame->subx1; xk <= frame->subx2 - margin && !pixelExist; xk++) {
-        for (yk = y_start; yk < y_stop; yk++) {
-            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+    for (xk = frame->subx1; xk <= frame->subx2 - margin && !pixelExist; ++xk) {
+        for (yk = y_start; yk < y_stop && !pixelExist; ++yk) {
+            pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
         }
     }
-    //sub one since inc before cmp !pixelExist
-    box->x1 = MAX(xk-1, frame->subx1);
+    box->x1 = MAX(frame->subx1, xk - (pixelExist & 0x1));
 
-    //right
     pixelExist = 0;
-    for (xk = frame->subx2; xk >= frame->subx1 + margin && !pixelExist; xk--) {
-        for (yk = y_start; yk < y_stop; yk++) {
-            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+    for (xk = frame->subx2; xk >= frame->subx1 + margin && !pixelExist; --xk) {
+        for (yk = y_start; yk < y_stop && !pixelExist; ++yk) {
+            pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
         }
     }
-    box->x2 = MIN(xk+1, frame->subx2);
+    box->x2 = MIN(frame->subx2, MAX(frame->subx1 + margin - 1, xk + (pixelExist & 0x1)));
 
     if (y_start == frame->suby1) {
         box->y1 = frame->suby1;
 
         pixelExist = 0;
-        for (yk = y_stop; yk >= y_start + margin && !pixelExist; yk--) {
-            for (xk = box->x1; xk <= box->x2; xk++) {
-                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        for (yk = y_stop; yk >= y_start + margin && !pixelExist; --yk) {
+            for (xk = box->x1; xk <= box->x2 && !pixelExist; ++xk) {
+                pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
             }
         }
-        box->y2 = MIN(yk+1, y_stop);
+        box->y2 = MIN(yk + (pixelExist & 0x1), y_stop);
     } else {
         box->y2 = frame->suby2;
 
         pixelExist = 0;
-        for (yk = y_start; yk < y_stop - margin && !pixelExist; yk++) {
-            for (xk = box->x1; xk <= box->x2; xk++) {
-                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        for (yk = y_start; yk < y_stop - margin && !pixelExist; ++yk) {
+            for (xk = box->x1; xk <= box->x2 && !pixelExist; ++xk) {
+                pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
             }
         }
-        box->y1 = MAX(yk-1, y_start);
+        box->y1 = MAX(yk - (pixelExist & 0x1), y_start);
     }
 }
 
@@ -498,48 +506,48 @@ static void find_bbox_xsplit(image_t* restrict frame, int x_start, int x_stop, c
 
     //top
     pixelExist = 0;
-    for (yk = frame->suby1; (yk <= frame->suby2 - margin) && !pixelExist; yk++) {
-        for (xk = x_start; xk < x_stop; xk++) {
-            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+    for (yk = frame->suby1; (yk <= frame->suby2 - margin) && !pixelExist; ++yk) {
+        for (xk = x_start; xk < x_stop && !pixelExist; ++xk) {
+            pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
         }
     }
-    box->y1 = MAX(yk-1, frame->suby1);
+    box->y1 = MAX(frame->suby1, yk - (pixelExist & 0x1));
 
     //bottom
     pixelExist = 0;
-    for (yk = frame->suby2; (yk >= frame->suby1 + margin) && !pixelExist; yk--) {
-        for (xk = x_start; xk < x_stop; xk++) {
-            pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+    for (yk = frame->suby2; (yk >= frame->suby1 + margin) && !pixelExist; --yk) {
+        for (xk = x_start; xk < x_stop && !pixelExist; ++xk) {
+            pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
         }
     }
-    box->y2 = MIN(yk+1, frame->suby2);
+    box->y2 = MIN(frame->suby2, MAX(frame->suby1 + margin - 1, yk + (pixelExist & 0x1)));
 
     if (x_start == frame->subx1) {
         box->x1 = frame->subx1;
 
         pixelExist = 0;
-        for (xk = x_stop; xk >= x_start + margin && !pixelExist; xk--) {
-            for (yk = box->y1; yk <= box->y2; yk++) {
-                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        for (xk = x_stop; xk >= x_start + margin && !pixelExist; --xk) {
+            for (yk = box->y1; yk <= box->y2 && !pixelExist; ++yk) {
+                pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
             }
         }
-        box->x2 = MIN(xk+1, x_stop);
+        box->x2 = MIN(xk + (pixelExist & 0x1), x_stop);
     } else {
         box->x2 = frame->subx2;
 
         pixelExist = 0;
-        for (xk = x_start; xk <= x_stop - margin && !pixelExist; xk++) {
-            for (yk = box->y1; yk <= box->y2; yk++) {
-                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3] > 0;
+        for (xk = x_start; xk <= x_stop - margin && !pixelExist; ++xk) {
+            for (yk = box->y1; yk <= box->y2 && !pixelExist; ++yk) {
+                pixelExist = (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
             }
         }
-        box->x1 = MAX(xk-1, x_start);
+        box->x1 = MAX(xk - (pixelExist & 0x1), x_start);
     }
 }
 
 static int find_split(image_t* restrict frame, opts_t *args)
 {
-    const int margin = 8;
+    const int margin = MARGIN_HV;
     const int step = (args->split < 4) ? 8 : 1;
     uint32_t best_score = (uint32_t)(-1);
     uint8_t pixelExist;
@@ -555,7 +563,7 @@ static int find_split(image_t* restrict frame, opts_t *args)
         for (yk = frame->suby1 + margin; yk <= frame->suby2 - margin; yk+=step) {
             pixelExist = 0;
             for (xk = frame->subx1; xk <= frame->subx2 && !pixelExist; xk++) {
-                pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
+                pixelExist = pixelExist || (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
             }
 
             //Line is used by data, skip to the next split.
@@ -579,7 +587,7 @@ static int find_split(image_t* restrict frame, opts_t *args)
             for (xk = frame->subx1 + margin; xk <= frame->subx2 - margin; xk+=step) {
                 pixelExist = 0;
                 for (yk = frame->suby1; yk <= frame->suby2 && !pixelExist; yk++) {
-                    pixelExist |= frame->buffer[yk*frame->stride + xk*4 + 3];
+                    pixelExist = pixelExist || (frame->buffer[yk*frame->stride + xk*4 + 3] > 0);
                 }
 
                 //Line is used by data, skip to the next split.
@@ -647,15 +655,13 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t* restrict
             }
             frame->out = frame_cnt + 1;
         } else {
-            //Sometime sampling time is on an active event but the blended image is transparent
-            // because the composition coefficients are weak -> discard
+            //Some events can be fully transparent, discard them
             prev_invalid = 1;
             if (prev_frame)
                 prev_frame->in = (uint64_t)(-1);
             return 2;
         }
         prev_invalid = 0;
-
         return 3;
     } else if (!changed && img) {
         if (prev_invalid)
@@ -780,16 +786,13 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
             case 0:
             {
                 tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate), 1);
-                uint64_t offset = (tm*frate->num)/(frate->denom*1000);
+                const uint64_t offset = (tm*frate->num)/(frate->denom*1000);
 
                 if (!tm && frame_cnt > 1)
                     goto finish;
 
-                if (offset == 0) {
-                    offset = 1; //avoid deadlocks
-                }
-
-                frame_cnt += offset;
+                //avoid deadlocks
+                frame_cnt += MAX(offset, 1);
                 break;
             }
         }
