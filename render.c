@@ -20,7 +20,7 @@ ASS_Library *ass_library;
 ASS_Renderer *ass_renderer;
 liq_attr *attr;
 
-static image_t *image_init(int width, int height)
+static image_t *image_init(const int width, const int height)
 {
     image_t *img = calloc(1, sizeof(image_t));
     img->width = width;
@@ -39,7 +39,7 @@ static void image_reset(image_t *img)
     img->buffer = memset(img->buffer, 0, img->height * img->stride);
 }
 
-void eventlist_set(eventlist_t *list, image_t *ev, int index)
+void eventlist_set(eventlist_t *list, image_t *ev, const int index)
 {
     image_t *newev;
 
@@ -91,7 +91,8 @@ static void msg_callback(int level, const char *fmt, va_list va, void *data)
     printf("\n");
 }
 
-static void write_png_palette(uint32_t count, image_t* restrict rgba_img, liq_image **img, liq_result **res, opts_t *args, uint8_t is_split, float dither_val)
+static void write_png_palette(const uint32_t count, image_t* restrict rgba_img, liq_image **img, liq_result **res,
+                              const opts_t *args, const uint8_t is_split, const float dither_val)
 {
     FILE *fp;
     png_structp png_ptr;
@@ -209,7 +210,7 @@ static void write_png_palette(uint32_t count, image_t* restrict rgba_img, liq_im
     free(palette);
 }
 
-static void write_png(char *fname, image_t* restrict img)
+static void write_png(char *fname, const image_t* restrict img)
 {
     FILE *fp;
     png_structp png_ptr;
@@ -265,7 +266,7 @@ static void write_png(char *fname, image_t* restrict img)
     fclose(fp);
 }
 
-static void init(opts_t *args, liqopts_t *liqargs)
+static void init(const opts_t *args, const liqopts_t *liqargs)
 {
     if (fesetround(FE_TONEAREST)) {
         printf(A2B_LOG_PREFIX "failed to set configure rounding method. Bitmaps may suffer from colour drift.\n");
@@ -350,7 +351,7 @@ static void init(opts_t *args, liqopts_t *liqargs)
 #define ablend(iA, oA, iC, oC, nA) \
     lrint((iA * 255 * iC + (65025 - iA) * oC * oA) / (float)nA)
 
-static void blend_single(image_t* restrict frame, ASS_Image *img)
+static void blend_single(image_t* restrict frame, const ASS_Image *img)
 {
     int x, y, c;
     uint32_t outa, k;
@@ -455,7 +456,7 @@ static void blend(image_t* restrict frame, ASS_Image *img, const opts_t *args)
     }
 }
 
-static void find_bbox_ysplit(image_t* restrict frame, int y_start, int y_stop, const int margin, BoundingBox_t *box)
+static void find_bbox_ysplit(const image_t* restrict frame, const int y_start, const int y_stop, const int margin, BoundingBox_t *box)
 {
     int pixelExist;
     int xk, yk;
@@ -499,7 +500,7 @@ static void find_bbox_ysplit(image_t* restrict frame, int y_start, int y_stop, c
     }
 }
 
-static void find_bbox_xsplit(image_t* restrict frame, int x_start, int x_stop, const int margin, BoundingBox_t *box)
+static void find_bbox_xsplit(const image_t* restrict frame, const int x_start, const int x_stop, const int margin, BoundingBox_t *box)
 {
     uint8_t pixelExist;
     int xk, yk;
@@ -545,7 +546,7 @@ static void find_bbox_xsplit(image_t* restrict frame, int x_start, int x_stop, c
     }
 }
 
-static int find_split(image_t* restrict frame, opts_t *args)
+static int find_split(image_t* restrict frame, const opts_t *args)
 {
     const int margin = MARGIN_HV;
     const int step = (args->split < 4) ? 8 : 1;
@@ -609,12 +610,17 @@ static int find_split(image_t* restrict frame, opts_t *args)
     return best_score < (uint32_t)(-1);
 }
 
-static uint64_t inline frame_to_realtime_ms(uint64_t frame_cnt, frate_t *frate)
+static uint64_t inline frame_to_realtime_ms(const uint64_t frame_cnt, const frate_t* restrict frate, const uint8_t floor_to_ms)
 {
-    return (uint64_t)round((1000*((uint64_t)frame_cnt - 1) * frate->denom)/(double)frate->num);
+    const double pts = ((double)(frame_cnt - 1llu) * ((double)frate->denom/(double)frate->num)) * 1000.0;
+    if (floor_to_ms)
+    {
+      return (uint64_t)floor(pts + 1e-6); // ... as decided by mpv and Aegisub maintainers
+    }
+    return (uint64_t)round(pts);
 }
 
-static uint8_t diff_frames(image_t* restrict current, image_t *prev)
+static uint8_t diff_frames(const image_t* restrict current, const image_t *prev)
 {
     //compare header
     if (0 != memcmp(current, prev, offsetof(image_t, out)))
@@ -627,14 +633,14 @@ static uint8_t diff_frames(image_t* restrict current, image_t *prev)
 }
 
 static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t* restrict prev_frame,
-                     image_t* restrict frame, uint64_t frame_cnt, frate_t *frate, opts_t *args)
+                     image_t* restrict frame, const uint64_t frame_cnt, const frate_t *frate, const opts_t *args)
 {
     //libass can return blank ASS_Images, we must remember whenever that happen as the changed
     //flag returned by libass becomes meaningless, and we would corrupt the event.
     static int prev_invalid = 0;
     int changed;
 
-    uint64_t ms = frame_to_realtime_ms(frame_cnt, frate);
+    const uint64_t ms = frame_to_realtime_ms(frame_cnt, frate, args->floor_ms);
     ASS_Image *img = ass_render_frame(renderer, track, ms, &changed);
 
     if (changed && img) {
@@ -677,7 +683,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t* restrict
     }
 }
 
-static int quantize_event(image_t* restrict frame, liq_image **img, liq_result **qtz_res, opts_t *args)
+static int quantize_event(image_t* restrict frame, liq_image **img, liq_result **qtz_res, const opts_t *args)
 {
     *img = liq_image_create_rgba(attr, &frame->buffer[frame->stride*frame->suby1], frame->width, frame->suby2-frame->suby1+1, 0);
     if (NULL == *img)
@@ -706,7 +712,7 @@ static int quantize_event(image_t* restrict frame, liq_image **img, liq_result *
     return ret;
 }
 
-eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t *liqargs)
+eventlist_t *render_subs(char *subfile, const frate_t* restrict frate, const opts_t *args, const liqopts_t *liqargs)
 {
     long long tm = 0;
     int count = 0, fres = 0, img_cnt = 0;
@@ -785,7 +791,7 @@ eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t 
                 break;
             case 0:
             {
-                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate), 1);
+                tm = (uint64_t)ass_step_sub(track, frame_to_realtime_ms(frame_cnt, frate, args->floor_ms), 1);
                 const uint64_t offset = (tm*frate->num)/(frate->denom*1000);
 
                 if (!tm && frame_cnt > 1)

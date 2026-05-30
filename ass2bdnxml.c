@@ -73,6 +73,7 @@ enum opts_short_e {
     OPT_ARG_HINTING,
     OPT_ARG_KEEPDUPES,
     OPT_ARG_FULLBITMAPS,
+    OPT_ARG_FLOORMS,
     //LIQ
     OPT_LIQ_SPEED          = 1000,
     OPT_LIQ_DITHER,
@@ -270,6 +271,7 @@ int main(int argc, char *argv[])
         {"width-store",  required_argument, 0, 'x'},
         {"downsample",   no_argument,       0, 'z'},
         {"dim",          required_argument, 0, OPT_ARG_DIM},
+        {"floor-ms",     no_argument,       0, OPT_ARG_FLOORMS},
         {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
         {"height-store", required_argument, 0, OPT_ARG_STORAGE_HEIGHT},
@@ -318,6 +320,9 @@ int main(int argc, char *argv[])
                     args.dim_flag = args.dimf > 0.0;
                     args.dimf = MAX(0.0f, MIN(1.0f, 1.0f - (args.dimf/100.0f)));
                 }
+                break;
+            case OPT_ARG_FLOORMS:
+                args.floor_ms = 1;
                 break;
             case OPT_ARG_SQUAREPIX:
                 args.square_px = 1;
@@ -403,7 +408,7 @@ int main(int argc, char *argv[])
             case 'j':
                 args.justify = 1 + (int)strtol(optarg, NULL, 10); /* +1 to denote justify override enabled */
                 if (args.justify <= 0 || args.justify > 4 ) {
-                    printf("Invalid justify override value. Permitted 0: auto, 1: left, 2: center, 3: right. No override whatsoever.\n");
+                    printf("Invalid justify override value. Permitted 0: auto, 1: left, 2: center, 3: right. If unspecified: no override whatsoever.\n");
                     exit(1);
                 }
                 break;
@@ -444,13 +449,13 @@ int main(int argc, char *argv[])
             case OPT_LIQ_DITHER:
                 liqargs.dither = (float)strtod(optarg, NULL);
                 if (liqargs.dither > 1.0f || liqargs.dither < 0.0f) {
-                    printf("Dithering level must be within [0.0; 1.0] incl. Default: 1 (enabled, maximum).\n");
+                    printf("Dithering level must be within [0.0; 1.0] incl. Default: 1.0 (enabled, maximum).\n");
                     exit(1);
                 }
                 liq_params |= 1;
                 break;
             case OPT_ARG_VERSION:
-                printf("ass2bdnxml v" A2B_VERSION_STRING " (c) 2015 mia-0, (c) 2026 cubicibo\n");
+                printf("ass2bdnxml v" A2B_VERSION_STRING " (c) 2015 mia-0, (c) 2023-2026 cubicibo\n");
                 exit(0);
                 break;
             default:

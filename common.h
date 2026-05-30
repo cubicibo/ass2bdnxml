@@ -54,7 +54,8 @@ typedef struct opts_s {
     uint32_t dim_flag     : 1;
     uint32_t full_bitmaps : 1; //8
     uint32_t justify      : 3;
-    uint32_t _bpad1       : 13;
+    uint32_t floor_ms     : 1;
+    uint32_t _bpad1       : 12;
     const char *fontdir;
 } opts_t;
 
@@ -64,4 +65,4 @@ typedef struct liqopts_s {
     uint8_t max_quality;
 } liqopts_t;
 
-eventlist_t *render_subs(char *subfile, frate_t *frate, opts_t *args, liqopts_t *liqargs);
+eventlist_t *render_subs(char *subfile, const frate_t* restrict frate, const opts_t *args, const liqopts_t *liqargs);

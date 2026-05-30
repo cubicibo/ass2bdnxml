@@ -74,6 +74,9 @@ The following optional arguments are available:
 |                    | subtitles with HDR content. SDR white dimmed by 33%    |
 |                    | will make white subtitles display at roughly 200 nits. |
 +--------------------+--------------------------------------------------------+
+|                    | Floor to the millisecond rather than round to nearest  |
+| ``--floor-ms``     | Matches latest Aegisub and mpv display behaviour.      |
++--------------------+--------------------------------------------------------+
 | ``-o``             | Sets the TC offset to shift all of the BDN Timecodes.  |
 | ``--offset``       | Default: ``00:00:00:00`` (offset of zero frame)        |
 |                    | Note: TC string must be the standard SMPTE NDF format. |
@@ -183,4 +186,4 @@ Notes
 
 - Real 60 fps is only supported on the UHD BD format.
 - Captions for 4K UHD BDs are always rendered at 1080p. BD players always upscale the presentation graphics on playback, as native 2160p subtitles are strictly forbidden by the Blu-ray format.
-- 50 and 59.94 is reserved for 720p or UHD content. 1080i, 480i and 576i is only 25 or 29.97, but there may be some leeway.
+- 50 and 59.94 are reserved for 720p or UHD content. 1080i, 480i and 576i are only 25 or 29.97, but there may be some leeway.
