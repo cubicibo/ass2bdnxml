@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#define A2B_VERSION_STRING "0.7f"
+#define A2B_VERSION_STRING "0.7g"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
@@ -522,6 +522,12 @@ int main(int argc, char *argv[])
     //frame_x is the normalized BD video container dimension
     args.frame_h = vfmt->h;
     args.frame_w = vfmt->w;
+
+    if (args.full_bitmaps && args.split)
+    {
+        printf("Cannot use the split and full bitmaps options concurrently. aborting.\n");
+        exit(1);
+    }
 
     uint8_t storage_set = args.storage_w != 0 || args.storage_h != 0;
     if (args.anamorphic && (args.par > 0 || storage_set || args.square_px)) {
