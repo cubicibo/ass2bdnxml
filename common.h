@@ -41,6 +41,7 @@ typedef struct opts_s {
     int render_h;
     int storage_w;
     int storage_h;
+    uint32_t sampling_period;
     uint16_t quantize;
     uint16_t splitmargin[2];
     uint32_t hinting      : 1;

@@ -74,8 +74,11 @@ The following optional arguments are available:
 |                    | subtitles with HDR content. SDR white dimmed by 33%    |
 |                    | will make white subtitles display at roughly 200 nits. |
 +--------------------+--------------------------------------------------------+
-|                    | Floor to the millisecond rather than round to nearest  |
-| ``--floor-ms``     | Matches latest Aegisub and mpv display behaviour.      |
+| ``--floor-ms``     | Floor to the millisecond rather than round to nearest  |
+|                    | Matches latest Aegisub and mpv display behaviour.      |
++--------------------+--------------------------------------------------------+
+| ``--sample-period``| Specify the sampling frame period. Default: 1.         |
+|                    | E.g. set to 2 for 25 fps content in a 50 fps container.|
 +--------------------+--------------------------------------------------------+
 | ``-o``             | Sets the TC offset to shift all of the BDN Timecodes.  |
 | ``--offset``       | Default: ``00:00:00:00`` (offset of zero frame)        |

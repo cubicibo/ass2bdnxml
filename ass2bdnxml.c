@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#define A2B_VERSION_STRING "0.7g"
+#define A2B_VERSION_STRING "0.7h"
 
 frate_t frates[] = {
     {"23.976",24, 24000, 1001},
@@ -74,6 +74,7 @@ enum opts_short_e {
     OPT_ARG_KEEPDUPES,
     OPT_ARG_FULLBITMAPS,
     OPT_ARG_FLOORMS,
+    OPT_ARGS_SAMPLE_PERIOD,
     //LIQ
     OPT_LIQ_SPEED          = 1000,
     OPT_LIQ_DITHER,
@@ -272,6 +273,7 @@ int main(int argc, char *argv[])
         {"downsample",   no_argument,       0, 'z'},
         {"dim",          required_argument, 0, OPT_ARG_DIM},
         {"floor-ms",     no_argument,       0, OPT_ARG_FLOORMS},
+        {"sample-period",required_argument, 0, OPT_ARGS_SAMPLE_PERIOD},
         {"squarepx",     no_argument,       0, OPT_ARG_SQUAREPIX},
         {"height-render",required_argument, 0, OPT_ARG_FRAME_HEIGHT},
         {"height-store", required_argument, 0, OPT_ARG_STORAGE_HEIGHT},
@@ -323,6 +325,14 @@ int main(int argc, char *argv[])
                 break;
             case OPT_ARG_FLOORMS:
                 args.floor_ms = 1;
+                break;
+            case OPT_ARGS_SAMPLE_PERIOD:
+                args.sampling_period = (uint32_t)strtol(optarg, NULL, 10);
+                if (args.sampling_period < 1)
+                {
+                    printf("Sampling period cannot be less than one frame.\n");
+                    exit(1);
+                }
                 break;
             case OPT_ARG_SQUAREPIX:
                 args.square_px = 1;
@@ -491,6 +501,13 @@ int main(int argc, char *argv[])
         bdnfile[len - i - 3] = 'm';
         bdnfile[len - i - 2] = 'l';
         bdnfile[len - i - 1] = 0;
+    }
+
+    args.sampling_period = MAX(args.sampling_period, 1);
+    if (args.downsampled > 0 && args.sampling_period > 1)
+    {
+        printf("Cannot use -z (--downsample) with --sample-period.\n");
+        exit(1);
     }
 
     i = 0;

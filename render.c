@@ -659,7 +659,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t* restrict
                 ++frame->out;
                 return 1;
             }
-            frame->out = frame_cnt + 1;
+            frame->out = frame_cnt + args->sampling_period;
         } else {
             //Some events can be fully transparent, discard them
             prev_invalid = 1;
@@ -672,7 +672,7 @@ static int get_frame(ASS_Renderer *renderer, ASS_Track *track, image_t* restrict
     } else if (!changed && img) {
         if (prev_invalid)
             return 2;
-        ++frame->out;
+        frame->out += args->sampling_period;
         return 1;
     } else {
         //No event, change prev_frame content
@@ -787,7 +787,7 @@ eventlist_t *render_subs(char *subfile, const frate_t* restrict frate, const opt
             /* fall through */
             case 2:
             case 1:
-                ++frame_cnt;
+                frame_cnt += args->sampling_period;
                 break;
             case 0:
             {
@@ -799,6 +799,14 @@ eventlist_t *render_subs(char *subfile, const frate_t* restrict frate, const opt
 
                 //avoid deadlocks
                 frame_cnt += MAX(offset, 1);
+                if (args->sampling_period > 1)
+                {
+                    uint64_t missing_step = (frame_cnt - 1) % args->sampling_period;
+                    if (missing_step > 0)
+                    {
+                        frame_cnt += (uint64_t)args->sampling_period - missing_step;
+                    }
+                }
                 break;
             }
         }
